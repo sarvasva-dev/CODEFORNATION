@@ -224,7 +224,7 @@ app.post('/api/scores', async (req, res) => {
     return res.status(401).json({ error: "Unauthorized. Valid Admin Password required." });
   }
 
-  const { teamId, score, repoUrl, liveUrl, pptUrl } = req.body || {};
+  const { teamId, score } = req.body || {};
   if (!teamId || isNaN(score)) {
     return res.status(400).json({ error: "Invalid teamId or score" });
   }
@@ -233,15 +233,10 @@ app.post('/api/scores', async (req, res) => {
   const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
   const teamName = teamObj ? teamObj.name : teamId;
 
-  const updateData = { id: teamId, name: teamName, score: numScore, updated_at: new Date() };
-  if (repoUrl !== undefined) updateData.repo_url = String(repoUrl).trim();
-  if (liveUrl !== undefined) updateData.live_url = String(liveUrl).trim();
-  if (pptUrl !== undefined) updateData.ppt_url = String(pptUrl).trim();
-
   try {
     const { error } = await supabase
       .from('teams')
-      .upsert(updateData);
+      .upsert({ id: teamId, name: teamName, score: numScore, updated_at: new Date() });
     
     if (error) {
       console.error("Error saving score to Supabase:", error.message);
@@ -253,9 +248,6 @@ app.post('/api/scores', async (req, res) => {
   }
 
   memoryStore[teamId] = numScore;
-  if (repoUrl !== undefined) repoStore[teamId] = String(repoUrl).trim();
-  if (liveUrl !== undefined) liveStore[teamId] = String(liveUrl).trim();
-  if (pptUrl !== undefined) pptStore[teamId] = String(pptUrl).trim();
 
   const updatedScores = await fetchAllScores();
   broadcastScores(updatedScores);

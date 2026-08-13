@@ -116,7 +116,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { teamId, score, repoUrl, liveUrl, pptUrl } = body || {};
+      const { teamId, score } = body || {};
 
       if (!teamId || isNaN(score)) {
         return res.status(400).json({ error: 'Invalid teamId or score' });
@@ -126,30 +126,12 @@ module.exports = async function handler(req, res) {
       const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
       const teamName = teamObj ? teamObj.name : teamId;
 
-      const updateData = {
+      await supabase.from('teams').upsert({
         id: teamId,
         name: teamName,
         score: numScore,
         updated_at: new Date()
-      };
-
-      if (repoUrl !== undefined) {
-        const cleanRepo = String(repoUrl).trim();
-        updateData.repo_url = cleanRepo;
-        repoFallback[teamId] = cleanRepo;
-      }
-      if (liveUrl !== undefined) {
-        const cleanLive = String(liveUrl).trim();
-        updateData.live_url = cleanLive;
-        liveFallback[teamId] = cleanLive;
-      }
-      if (pptUrl !== undefined) {
-        const cleanPpt = String(pptUrl).trim();
-        updateData.ppt_url = cleanPpt;
-        pptFallback[teamId] = cleanPpt;
-      }
-
-      await supabase.from('teams').upsert(updateData);
+      });
 
       fallbackStore[teamId] = numScore;
       return res.status(200).json({ success: true, teamId, score: numScore });
