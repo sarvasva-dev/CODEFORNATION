@@ -1070,6 +1070,31 @@ tbody tr:hover { background: #F8FAFC; }
   color: var(--saffron-bright);
 }
 
+/* PPT Link Button */
+.ppt-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%);
+  color: #FFFFFF;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-decoration: none;
+  border: 1px solid #6D28D9;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+  transition: all 0.2s ease;
+}
+
+.ppt-link-btn:hover {
+  background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%);
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+  color: #FFFFFF;
+}
+
+
 
 
 

@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VSICS | Submit GitHub & Live Links - Code for the Nation 2026</title>
+<title>VSICS | Submit GitHub, Live & PPT Links - Code for the Nation 2026</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☬</text></svg>">
 <link rel="stylesheet" href="style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<!-- Supabase JS Client for Direct Free Supabase Storage File Uploads -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="submit-body">
 
@@ -22,7 +24,7 @@
       <div class="brand-info">
         <p class="institution">Dr. Virendra Swarup Institute of Computer Studies</p>
         <h1>CODE FOR THE NATION 2026</h1>
-        <p class="subtitle">Team Leader Submission Portal (GitHub & Live Links)</p>
+        <p class="subtitle">Team Leader Submission Portal (GitHub, Live Website & PPT)</p>
       </div>
     </div>
     <div class="topbar-actions">
@@ -37,6 +39,7 @@
     <div class="tag-item">💻 <span>BUILD</span> With Code</div>
     <div class="tag-item">🎨 <span>DESIGN</span> The Future</div>
     <div class="tag-item">🌐 <span>LIVE</span> Project Link</div>
+    <div class="tag-item">📊 <span>PPT</span> Presentation</div>
     <div class="tag-item">🇮🇳 <span>INSPIRE</span> The Nation</div>
   </div>
 
@@ -44,10 +47,10 @@
     <!-- Hero Header Card -->
     <div class="card repo-hero-card">
       <div class="repo-hero-content">
-        <div class="github-icon-large">🌐</div>
+        <div class="github-icon-large">📊</div>
         <div>
-          <h2>Submit GitHub Repo & Live Website Link</h2>
-          <p>Team Leaders: Select your official team name and submit your project's GitHub Repository URL and Live Hosted Demo Link below.</p>
+          <h2>Submit GitHub Repo, Live Website & PPT Presentation</h2>
+          <p>Team Leaders: Select your official team name and submit your project's GitHub Repository URL, Live Hosted Demo Link, and PPT Presentation below.</p>
         </div>
       </div>
       <button id="whatsappShareBtn" class="btn whatsapp-btn">
@@ -56,7 +59,7 @@
       </button>
     </div>
 
-    <!-- Repository & Live Link Submission Form Card -->
+    <!-- Repository, Live Link & PPT Submission Form Card -->
     <section class="card form-card">
       <div class="card-header">
         <h2>Submit Project Details</h2>
@@ -81,11 +84,21 @@
             <label for="liveUrlInput">Live Website / Hosted URL <span class="badge" style="background:#F1F5F9; color:#475569; font-size:0.75rem; border:1px solid #CBD5E1;">Optional</span></label>
             <input type="url" id="liveUrlInput" placeholder="https://my-team-project.vercel.app (Optional)">
           </div>
+
+          <div class="form-group">
+            <label for="pptUrlInput">PPT Link (Google Slides / Canva) <span class="badge" style="background:#F1F5F9; color:#475569; font-size:0.75rem; border:1px solid #CBD5E1;">Option 1</span></label>
+            <input type="url" id="pptUrlInput" placeholder="https://docs.google.com/presentation/d/... or Canva link">
+          </div>
+
+          <div class="form-group">
+            <label for="pptFileInput">OR Upload PPT / PDF File <span class="badge" style="background:#F0FDF4; color:#166534; font-size:0.75rem; border:1px solid #BBF7D0;">Free Supabase Storage</span></label>
+            <input type="file" id="pptFileInput" accept=".ppt,.pptx,.pdf" style="padding:10px 14px; border:1.5px dashed var(--saffron-border); border-radius:10px; background:#FFFBF5; width:100%; font-size:0.9rem;">
+          </div>
         </div>
 
         <div class="btn-row" style="margin-top: 24px;">
-          <button type="submit" class="btn primary-gradient login-submit-btn" style="flex:1;">
-            🚀 Submit Project Links (Repo & Live Demo)
+          <button type="submit" id="submitBtn" class="btn primary-gradient login-submit-btn" style="flex:1;">
+            🚀 Submit Project Details (Repo, Live Demo & PPT)
           </button>
         </div>
       </form>
@@ -95,8 +108,8 @@
     <!-- Submitted Teams Roster Table Card -->
     <section class="card list-card">
       <div class="card-header">
-        <h2>Team Repositories & Live Links Roster (<span id="submittedCount">0</span>/<span id="totalTeamsCount">16</span> Submitted)</h2>
-        <p class="section-desc">Live status of GitHub repository and hosted website links submitted by team leaders.</p>
+        <h2>Team Repositories, Live Links & PPT Roster (<span id="submittedCount">0</span>/<span id="totalTeamsCount">16</span> Submitted)</h2>
+        <p class="section-desc">Live status of GitHub repository, hosted website, and PPT presentation links submitted by team leaders.</p>
       </div>
 
       <div class="table-wrap">
@@ -108,6 +121,7 @@
               <th style="width: 120px;">Status</th>
               <th>GitHub Repository</th>
               <th>Live Website Demo</th>
+              <th>PPT Presentation</th>
             </tr>
           </thead>
           <tbody id="repoRosterBody"></tbody>

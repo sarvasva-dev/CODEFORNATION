@@ -1,4 +1,4 @@
-// ===== VSICS Hackathon Leaderboard Engine (Supabase + WebSockets + GitHub & Live Links Submissions) =====
+// ===== VSICS Hackathon Leaderboard Engine (Supabase + WebSockets + GitHub, Live & PPT Submissions) =====
 const STORAGE_KEY = 'vsics_hackathon_leaderboard_v2';
 const API_BASE = '/api/scores';
 const ADMIN_PASSWORD = '##HELLOCODEFORNATION';
@@ -25,6 +25,16 @@ const HARDCODED_TEAMS = [
   { id: 'team-16', name: 'Golden Tech' }
 ];
 
+const SUPABASE_URL = "https://uqgtwvbwruhwkkpvuanv.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxZ3R3dmJ3cnVod2trcHZ1YW52Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQzNTc0MSwiZXhwIjoyMTAyMDExNzQxfQ.gUNRU-y98XkHGMe2S0hVFKzPCRwp-Kvy84Kf6E8R0Hw";
+
+let supabaseClient = null;
+if (window.supabase) {
+  try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(e){}
+}
+
 let socket = null;
 let reconnectTimer = null;
 
@@ -42,18 +52,14 @@ function getScoreMap() {
     if (!raw) return {};
     return JSON.parse(raw) || {};
   } catch (e) {
-    console.error('⚠️ [LocalStorage] Error reading store:', e);
     return {};
   }
 }
 
-// Write score map to LocalStorage
 function saveScoreMap(map) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.error('⚠️ [LocalStorage] Error saving store:', e);
-  }
+  } catch (e) {}
 }
 
 // Read repo map from LocalStorage
@@ -90,16 +96,35 @@ function saveLiveMap(map) {
   } catch (e) {}
 }
 
-// Get array of teams merged with current LocalStorage scores, repos & live links
+// Read PPT map from LocalStorage
+function getPptMap() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY + '_ppts');
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function savePptMap(map) {
+  try {
+    localStorage.setItem(STORAGE_KEY + '_ppts', JSON.stringify(map));
+  } catch (e) {}
+}
+
+// Get array of teams merged with current LocalStorage scores, repos, live links & ppt links
 function getTeams() {
   const map = getScoreMap();
   const repoMap = getRepoMap();
   const liveMap = getLiveMap();
+  const pptMap = getPptMap();
   return HARDCODED_TEAMS.map(team => ({
     ...team,
     score: map[team.id] !== undefined ? Math.max(0, parseFloat(map[team.id]) || 0) : 0,
     repo_url: repoMap[team.id] || '',
-    live_url: liveMap[team.id] || ''
+    live_url: liveMap[team.id] || '',
+    ppt_url: pptMap[team.id] || ''
   }));
 }
 
@@ -115,7 +140,6 @@ function initWebSocket(onScoresUpdate) {
   const wsUrl = `${protocol}//${host}`;
 
   try {
-    console.log(`🔌 [WebSocket Client] Connecting to ${wsUrl}...`);
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -127,40 +151,35 @@ function initWebSocket(onScoresUpdate) {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'SCORES_UPDATED' && Array.isArray(message.scores)) {
-          console.log('📡 [WebSocket Broadcast] Instant score/repo/live update received!');
           const map = getScoreMap();
           const repoMap = getRepoMap();
           const liveMap = getLiveMap();
+          const pptMap = getPptMap();
           message.scores.forEach(item => {
             if (item.id) {
               if (item.score !== undefined) map[item.id] = Number(item.score) || 0;
               if (item.repo_url !== undefined) repoMap[item.id] = item.repo_url || '';
               if (item.live_url !== undefined) liveMap[item.id] = item.live_url || '';
+              if (item.ppt_url !== undefined) pptMap[item.id] = item.ppt_url || '';
             }
           });
           saveScoreMap(map);
           saveRepoMap(repoMap);
           saveLiveMap(liveMap);
+          savePptMap(pptMap);
           if (typeof onScoresUpdate === 'function') {
             onScoresUpdate();
           }
         }
-      } catch (err) {
-        console.error('Error parsing WebSocket message:', err);
-      }
+      } catch (err) {}
     };
 
     socket.onclose = () => {
-      console.warn('⚠️ [WebSocket Client] Disconnected. Retrying in 5 seconds...');
       reconnectTimer = setTimeout(() => initWebSocket(onScoresUpdate), 5000);
     };
 
-    socket.onerror = (err) => {
-      console.warn('⚠️ [WebSocket Client] Connection error:', err);
-    };
-  } catch (e) {
-    console.warn('WebSocket connection failed/unsupported:', e.message);
-  }
+    socket.onerror = (err) => {};
+  } catch (e) {}
 }
 
 // Update single team score locally and sync to Supabase API
@@ -169,19 +188,14 @@ async function setTeamScore(teamId, newScore) {
   const validScore = Math.max(0, parseFloat(newScore) || 0);
   map[teamId] = validScore;
   saveScoreMap(map);
-  console.log(`💾 [LocalStorage] Updated "${teamId}" -> ${validScore} pts`);
 
-  // Sync with Supabase API
   try {
     await fetch(API_BASE, {
       method: 'POST',
       headers: getAdminHeaders(),
       body: JSON.stringify({ teamId, score: validScore, adminPassword: ADMIN_PASSWORD })
     });
-    console.log(`⚡ [Supabase API] Saved score for ${teamId}`);
-  } catch (err) {
-    console.warn('⚠️ [Supabase API] Network push failed, cached locally:', err.message);
-  }
+  } catch (err) {}
 }
 
 // Reset all team scores to 0 locally and sync to Supabase API
@@ -189,7 +203,6 @@ async function resetAllScores() {
   const map = {};
   HARDCODED_TEAMS.forEach(t => map[t.id] = 0);
   saveScoreMap(map);
-  console.log('🧹 [LocalStorage] All team scores reset to 0.');
 
   try {
     await fetch(`${API_BASE}?action=reset`, {
@@ -197,13 +210,10 @@ async function resetAllScores() {
       headers: getAdminHeaders(),
       body: JSON.stringify({ adminPassword: ADMIN_PASSWORD })
     });
-    console.log('⚡ [Supabase API] Reset all scores on database.');
-  } catch (err) {
-    console.warn('⚠️ [Supabase API] Network reset failed:', err.message);
-  }
+  } catch (err) {}
 }
 
-// Sync scores, repo URLs & live URLs from Supabase API to LocalStorage
+// Sync scores, repo URLs, live URLs & PPT URLs from Supabase API to LocalStorage
 async function fetchServerScores() {
   try {
     const res = await fetch(API_BASE);
@@ -214,6 +224,7 @@ async function fetchServerScores() {
       const map = getScoreMap();
       const repoMap = getRepoMap();
       const liveMap = getLiveMap();
+      const pptMap = getPptMap();
       let updated = false;
       data.forEach(item => {
         if (item.id) {
@@ -229,6 +240,10 @@ async function fetchServerScores() {
             liveMap[item.id] = item.live_url || '';
             updated = true;
           }
+          if (item.ppt_url !== undefined && pptMap[item.id] !== item.ppt_url) {
+            pptMap[item.id] = item.ppt_url || '';
+            updated = true;
+          }
         }
       });
 
@@ -236,13 +251,11 @@ async function fetchServerScores() {
         saveScoreMap(map);
         saveRepoMap(repoMap);
         saveLiveMap(liveMap);
-        console.log('🔄 [Supabase API] Local state updated from server.');
+        savePptMap(pptMap);
       }
       return map;
     }
-  } catch (err) {
-    // Offline or server not running - local store used silently
-  }
+  } catch (err) {}
   return null;
 }
 
@@ -259,15 +272,15 @@ function escapeHtml(str) {
 
 // Export Leaderboard Data to CSV
 function exportLeaderboardCSV() {
-  console.log('📥 [CSV Export] Generating CSV file...');
   const teams = getSortedTeams().filter(t => t.score > 0);
-  let csvContent = 'Rank,Team Name,Score,GitHub Repository,Live Website Demo\n';
+  let csvContent = 'Rank,Team Name,Score,GitHub Repository,Live Website Demo,PPT Presentation\n';
   
   teams.forEach((t, i) => {
     const cleanName = `"${t.name.replace(/"/g, '""')}"`;
     const cleanRepo = `"${(t.repo_url || '').replace(/"/g, '""')}"`;
     const cleanLive = `"${(t.live_url || '').replace(/"/g, '""')}"`;
-    csvContent += `${i + 1},${cleanName},${t.score},${cleanRepo},${cleanLive}\n`;
+    const cleanPpt = `"${(t.ppt_url || '').replace(/"/g, '""')}"`;
+    csvContent += `${i + 1},${cleanName},${t.score},${cleanRepo},${cleanLive},${cleanPpt}\n`;
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -279,19 +292,21 @@ function exportLeaderboardCSV() {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-  console.log('✅ [CSV Export] Download started.');
 }
 
 // =========================================================
-// ============  SUBMIT REPO & LIVE PAGE LOGIC  ============
+// ============  SUBMIT REPO & LIVE & PPT PAGE LOGIC  ======
 // =========================================================
 const repoForm = document.getElementById('repoForm');
 
 if (repoForm) {
-  console.log('📁 [Submission Portal] GitHub Repo & Live Website Submission page loaded.');
+  console.log('📁 [Submission Portal] Submission page loaded.');
   const submitTeamSelect = document.getElementById('submitTeamSelect');
   const repoUrlInput = document.getElementById('repoUrlInput');
   const liveUrlInput = document.getElementById('liveUrlInput');
+  const pptUrlInput = document.getElementById('pptUrlInput');
+  const pptFileInput = document.getElementById('pptFileInput');
+  const submitBtn = document.getElementById('submitBtn');
   const submitStatusMsg = document.getElementById('submitStatusMsg');
   const repoRosterBody = document.getElementById('repoRosterBody');
   const submittedCount = document.getElementById('submittedCount');
@@ -315,26 +330,32 @@ if (repoForm) {
     teams.forEach((team, index) => {
       const hasRepo = Boolean(team.repo_url && team.repo_url.trim());
       const hasLive = Boolean(team.live_url && team.live_url.trim());
-      if (hasRepo || hasLive) countSubmitted++;
+      const hasPpt = Boolean(team.ppt_url && team.ppt_url.trim());
+      if (hasRepo || hasLive || hasPpt) countSubmitted++;
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>#${index + 1}</strong></td>
         <td><span class="team-badge">${escapeHtml(team.name)}</span></td>
         <td>
-          ${(hasRepo || hasLive) 
+          ${(hasRepo || hasLive || hasPpt) 
             ? '<span class="status-tag submitted">✅ Submitted</span>' 
             : '<span class="status-tag pending">⏳ Pending</span>'}
         </td>
         <td>
           ${hasRepo 
-            ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 ${escapeHtml(team.repo_url)} ↗</a>`
-            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No repository submitted</span>'}
+            ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>`
+            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No repository</span>'}
         </td>
         <td>
           ${hasLive 
-            ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 ${escapeHtml(team.live_url)} ↗</a>`
-            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No live demo submitted</span>'}
+            ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>`
+            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No live demo</span>'}
+        </td>
+        <td>
+          ${hasPpt 
+            ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT Presentation ↗</a>`
+            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No PPT link</span>'}
         </td>
       `;
       repoRosterBody.appendChild(tr);
@@ -349,7 +370,7 @@ if (repoForm) {
     setTimeout(() => {
       submitStatusMsg.textContent = '';
       submitStatusMsg.className = 'status-msg';
-    }, 4000);
+    }, 5000);
   }
 
   repoForm.addEventListener('submit', async (e) => {
@@ -357,6 +378,7 @@ if (repoForm) {
     const teamId = submitTeamSelect.value;
     const repoUrl = repoUrlInput.value.trim();
     const liveUrl = liveUrlInput ? liveUrlInput.value.trim() : '';
+    let pptUrl = pptUrlInput ? pptUrlInput.value.trim() : '';
 
     if (!teamId) {
       showSubmitStatus('Please select your official team from the list.', 'error');
@@ -369,41 +391,91 @@ if (repoForm) {
     }
 
     if (liveUrl && !liveUrl.startsWith('http://') && !liveUrl.startsWith('https://')) {
-      showSubmitStatus('Please enter a valid Live Website URL starting with http:// or https:// (or leave it blank).', 'error');
+      showSubmitStatus('Please enter a valid Live Website URL starting with http:// or https://', 'error');
       return;
+    }
+
+    if (pptUrl && !pptUrl.startsWith('http://') && !pptUrl.startsWith('https://')) {
+      showSubmitStatus('Please enter a valid PPT URL starting with http:// or https://', 'error');
+      return;
+    }
+
+    // Check if user uploaded a PPT file directly
+    if (pptFileInput && pptFileInput.files && pptFileInput.files[0]) {
+      const file = pptFileInput.files[0];
+      if (file.size > 52428800) { // 50MB limit
+        showSubmitStatus('Uploaded PPT file size exceeds 50MB limit.', 'error');
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Uploading PPT Presentation File to Free Cloud Storage...';
+      }
+
+      try {
+        if (supabaseClient) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${teamId}_${Date.now()}.${fileExt}`;
+          const { data: uploadData, error: uploadErr } = await supabaseClient.storage
+            .from('ppts')
+            .upload(fileName, file, { upsert: true });
+
+          if (!uploadErr && uploadData) {
+            const { data: publicUrlData } = supabaseClient.storage.from('ppts').getPublicUrl(fileName);
+            if (publicUrlData && publicUrlData.publicUrl) {
+              pptUrl = publicUrlData.publicUrl;
+              console.log('✅ Uploaded PPT File to Supabase Free Storage:', pptUrl);
+            }
+          } else {
+            console.warn('Supabase storage upload notice:', uploadErr?.message);
+          }
+        }
+      } catch (fErr) {
+        console.warn('File upload exception:', fErr.message);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = '🚀 Submit Project Details (Repo, Live Demo & PPT)';
+        }
+      }
     }
 
     // Update locally immediately
     const repoMap = getRepoMap();
     const liveMap = getLiveMap();
+    const pptMap = getPptMap();
     repoMap[teamId] = repoUrl;
     if (liveUrl) liveMap[teamId] = liveUrl;
+    if (pptUrl) pptMap[teamId] = pptUrl;
     saveRepoMap(repoMap);
     saveLiveMap(liveMap);
+    savePptMap(pptMap);
 
-    // Primary endpoint with Vercel action fallback
     const submitEndpoint = '/api/scores?action=submit-repo';
 
     try {
       const res = await fetch(submitEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, repoUrl, liveUrl })
+        body: JSON.stringify({ teamId, repoUrl, liveUrl, pptUrl })
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
         const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
-        showSubmitStatus(`🎉 Project Links for "${teamName}" submitted successfully!`, 'success');
+        showSubmitStatus(`🎉 Project Links & Presentation for "${teamName}" submitted successfully!`, 'success');
         repoUrlInput.value = '';
         if (liveUrlInput) liveUrlInput.value = '';
+        if (pptUrlInput) pptUrlInput.value = '';
+        if (pptFileInput) pptFileInput.value = '';
         submitTeamSelect.value = '';
         renderRepoRosterUI();
       } else {
-        showSubmitStatus(data.error || 'Failed to submit links. Please try again.', 'error');
+        showSubmitStatus(data.error || 'Failed to submit details. Please try again.', 'error');
       }
     } catch (err) {
-      showSubmitStatus('Submitted locally! Will sync when connection restores.', 'success');
+      showSubmitStatus('Submitted locally! Will sync when server is online.', 'success');
       renderRepoRosterUI();
     }
   });
@@ -411,7 +483,7 @@ if (repoForm) {
   if (whatsappShareBtn) {
     whatsappShareBtn.addEventListener('click', () => {
       const shareUrl = window.location.href;
-      const shareText = `🚩 *CODE FOR THE NATION 2026*\n\nAttention Team Leaders: Please select your team and submit your official GitHub Repository & Live Hosted Website links here:\n\n🔗 ${shareUrl}`;
+      const shareText = `🚩 *CODE FOR THE NATION 2026*\n\nAttention Team Leaders: Please select your team and submit your official GitHub Repository, Live Hosted Website & PPT Presentation links here:\n\n🔗 ${shareUrl}`;
       const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
       window.open(waUrl, '_blank');
     });
@@ -557,9 +629,10 @@ if (scoreForm) {
         <td>
           <div class="team-name-cell" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <span class="team-badge">${escapeHtml(team.name)}</span>
-            <div style="display: flex; gap: 6px; align-items: center;">
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
               ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
               ${team.live_url ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
+              ${team.ppt_url ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT ↗</a>` : ''}
             </div>
           </div>
         </td>
@@ -678,7 +751,6 @@ if (scoreForm) {
     });
   }
 
-  // Initialize Admin Authentication Check & WebSocket
   checkAdminAuth();
   initWebSocket(() => renderEntriesUI());
 }
@@ -699,7 +771,6 @@ if (leaderboardBody) {
   const rankClasses = ['gold', 'silver', 'bronze'];
 
   function renderLeaderboardUI() {
-    // Only display teams that have been assigned a score (> 0)
     const activeTeams = getSortedTeams().filter(t => t.score > 0);
     const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const filteredTeams = query
@@ -736,6 +807,7 @@ if (leaderboardBody) {
             <div style="margin-top: 10px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
               ${item.data.repo_url ? `<a href="${escapeHtml(item.data.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
               ${item.data.live_url ? `<a href="${escapeHtml(item.data.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
+              ${item.data.ppt_url ? `<a href="${escapeHtml(item.data.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT ↗</a>` : ''}
             </div>
           `;
           podium.appendChild(div);
@@ -756,9 +828,10 @@ if (leaderboardBody) {
         <td>
           <div class="team-name-cell" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <strong>${escapeHtml(team.name)}</strong>
-            <div style="display: flex; gap: 6px; align-items: center;">
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
               ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
               ${team.live_url ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
+              ${team.ppt_url ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT ↗</a>` : ''}
             </div>
           </div>
         </td>
@@ -778,18 +851,14 @@ if (leaderboardBody) {
     searchInput.addEventListener('input', renderLeaderboardUI);
   }
 
-  // Initial render
   renderLeaderboardUI();
 
-  // Initial server sync
   fetchServerScores().then(map => {
     if (map) renderLeaderboardUI();
   });
 
-  // Initialize Ultra-Fast Real-Time WebSocket Connection
   initWebSocket(() => renderLeaderboardUI());
 
-  // Polling backup fallback every 3 seconds
   setInterval(async () => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       const updatedMap = await fetchServerScores();
@@ -797,10 +866,8 @@ if (leaderboardBody) {
     }
   }, 3000);
 
-  // Storage listener for instant cross-tab sync
   window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY || e.key === STORAGE_KEY + '_repos' || e.key === STORAGE_KEY + '_lives') {
-      console.log('🔄 [Storage Event] Realtime sync from another tab.');
+    if (e.key === STORAGE_KEY || e.key === STORAGE_KEY + '_repos' || e.key === STORAGE_KEY + '_lives' || e.key === STORAGE_KEY + '_ppts') {
       renderLeaderboardUI();
     }
   });

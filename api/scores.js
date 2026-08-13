@@ -27,14 +27,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const fallbackStore = {};
 const repoFallback = {};
 const liveFallback = {};
+const pptFallback = {};
 HARDCODED_TEAMS.forEach(t => {
   fallbackStore[t.id] = 0;
   repoFallback[t.id] = '';
   liveFallback[t.id] = '';
+  pptFallback[t.id] = '';
 });
 
 module.exports = async function handler(req, res) {
-  // Enable CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -54,10 +55,9 @@ module.exports = async function handler(req, res) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
 
   try {
-    // Handle Team Leader Repo & Live Link Submission (Public endpoint)
     if (req.method === 'POST' && isSubmitRepoAction) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { teamId, repoUrl, liveUrl } = body || {};
+      const { teamId, repoUrl, liveUrl, pptUrl } = body || {};
 
       if (!teamId) {
         return res.status(400).json({ error: 'Team selection is required.' });
@@ -84,17 +84,23 @@ module.exports = async function handler(req, res) {
         liveFallback[teamId] = cleanLive;
       }
 
+      if (pptUrl !== undefined) {
+        const cleanPpt = String(pptUrl).trim();
+        updatePayload.ppt_url = cleanPpt;
+        pptFallback[teamId] = cleanPpt;
+      }
+
       await supabase.from('teams').upsert(updatePayload);
 
       return res.status(200).json({
         success: true,
         teamId,
         repoUrl: repoFallback[teamId] || '',
-        liveUrl: liveFallback[teamId] || ''
+        liveUrl: liveFallback[teamId] || '',
+        pptUrl: pptFallback[teamId] || ''
       });
     }
 
-    // Check admin password for score mutation (POST)
     if (req.method === 'POST') {
       const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
       if (reqPass !== ADMIN_PASSWORD) {
@@ -102,14 +108,12 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // Handle Reset All Scores
     if (req.method === 'POST' && isResetAction) {
       await supabase.from('teams').update({ score: 0, updated_at: new Date() }).neq('id', '');
       HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
       return res.status(200).json({ success: true, message: 'All team scores reset to 0' });
     }
 
-    // Handle Score Update
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { teamId, score } = body || {};
@@ -133,18 +137,19 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, teamId, score: numScore });
     }
 
-    // Handle GET (Fetch all team scores & repos & live links)
     if (req.method === 'GET') {
       const { data, error } = await supabase.from('teams').select('*');
       
       const scoreMap = {};
       const repoMap = {};
       const liveMap = {};
+      const pptMap = {};
       if (!error && data) {
         data.forEach(d => {
           scoreMap[d.id] = Number(d.score) || 0;
           if (d.repo_url) repoMap[d.id] = d.repo_url;
           if (d.live_url) liveMap[d.id] = d.live_url;
+          if (d.ppt_url) pptMap[d.id] = d.ppt_url;
         });
       }
 
@@ -152,7 +157,8 @@ module.exports = async function handler(req, res) {
         ...team,
         score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (fallbackStore[team.id] || 0),
         repo_url: repoMap[team.id] || repoFallback[team.id] || '',
-        live_url: liveMap[team.id] || liveFallback[team.id] || ''
+        live_url: liveMap[team.id] || liveFallback[team.id] || '',
+        ppt_url: pptMap[team.id] || pptFallback[team.id] || ''
       }));
       return res.status(200).json(result);
     }
@@ -165,7 +171,8 @@ module.exports = async function handler(req, res) {
       ...team,
       score: fallbackStore[team.id] !== undefined ? fallbackStore[team.id] : 0,
       repo_url: repoFallback[team.id] || '',
-      live_url: liveFallback[team.id] || ''
+      live_url: liveFallback[team.id] || '',
+      ppt_url: pptFallback[team.id] || ''
     }));
     return res.status(200).json(result);
   }

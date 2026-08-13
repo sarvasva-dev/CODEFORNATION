@@ -11,7 +11,8 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname)));
 
 const HARDCODED_TEAMS = [
@@ -44,8 +45,6 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', async (ws) => {
   console.log('⚡ [WebSocket] Client connected to live leaderboard stream.');
-  
-  // Send current scores, repos & live URLs immediately upon connection
   const scores = await fetchAllScores();
   ws.send(JSON.stringify({ type: 'SCORES_UPDATED', scores }));
 
@@ -70,10 +69,12 @@ function broadcastScores(scores) {
 const memoryStore = {};
 const repoStore = {};
 const liveStore = {};
+const pptStore = {};
 HARDCODED_TEAMS.forEach(t => {
   memoryStore[t.id] = 0;
   repoStore[t.id] = '';
   liveStore[t.id] = '';
+  pptStore[t.id] = '';
 });
 
 async function fetchAllScores() {
@@ -83,17 +84,20 @@ async function fetchAllScores() {
       const scoreMap = {};
       const repoMap = {};
       const liveMap = {};
+      const pptMap = {};
       data.forEach(d => {
         scoreMap[d.id] = Number(d.score) || 0;
         if (d.repo_url) repoMap[d.id] = d.repo_url;
         if (d.live_url) liveMap[d.id] = d.live_url;
+        if (d.ppt_url) pptMap[d.id] = d.ppt_url;
       });
 
       return HARDCODED_TEAMS.map(team => ({
         ...team,
         score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (memoryStore[team.id] || 0),
         repo_url: repoMap[team.id] || repoStore[team.id] || '',
-        live_url: liveMap[team.id] || liveStore[team.id] || ''
+        live_url: liveMap[team.id] || liveStore[team.id] || '',
+        ppt_url: pptMap[team.id] || pptStore[team.id] || ''
       }));
     }
   } catch (e) {
@@ -104,23 +108,22 @@ async function fetchAllScores() {
     ...team,
     score: memoryStore[team.id] || 0,
     repo_url: repoStore[team.id] || '',
-    live_url: liveStore[team.id] || ''
+    live_url: liveStore[team.id] || '',
+    ppt_url: pptStore[team.id] || ''
   }));
 }
 
-// Initialize & seed missing hardcoded teams in Supabase
+// Initialize Supabase & Seed Missing Teams
 async function initDB() {
   try {
     console.log("⚡ Checking Supabase Connection...");
     const { data, error } = await supabase.from('teams').select('id, name, score');
     if (error) {
       console.warn("⚠️ Supabase Notice:", error.message);
-      console.log("👉 Please run schema.sql in Supabase SQL Editor to create the table.");
       return;
     }
     console.log("✅ Supabase Connected Successfully! Found", data.length, "teams.");
 
-    // Seed missing teams if needed
     const existingIds = new Set(data.map(d => d.id));
     const missingTeams = HARDCODED_TEAMS.filter(t => !existingIds.has(t.id)).map(t => ({
       id: t.id,
@@ -133,6 +136,11 @@ async function initDB() {
       if (seedErr) console.warn("Seed error:", seedErr.message);
       else console.log(`✅ Seeded ${missingTeams.length} missing teams in Supabase.`);
     }
+
+    // Ensure PPT Bucket exists in Supabase Storage
+    try {
+      await supabase.storage.createBucket('ppts', { public: true, fileSizeLimit: 52428800 });
+    } catch (e) {}
   } catch (err) {
     console.error("❌ Supabase Init Error:", err.message);
   }
@@ -144,9 +152,8 @@ app.get('/api/scores', async (req, res) => {
   res.json(scores);
 });
 
-// Endpoint for Team Leaders to submit GitHub Repo & Live Website URL
-app.post('/api/submit-repo', async (req, res) => {
-  const { teamId, repoUrl, liveUrl } = req.body || {};
+async function handleSubmission(req, res) {
+  const { teamId, repoUrl, liveUrl, pptUrl } = req.body || {};
   if (!teamId) {
     return res.status(400).json({ error: "Team selection is required." });
   }
@@ -172,6 +179,12 @@ app.post('/api/submit-repo', async (req, res) => {
     liveStore[teamId] = cleanLive;
   }
 
+  if (pptUrl !== undefined) {
+    const cleanPpt = String(pptUrl).trim();
+    updatePayload.ppt_url = cleanPpt;
+    pptStore[teamId] = cleanPpt;
+  }
+
   try {
     const { error } = await supabase
       .from('teams')
@@ -180,26 +193,32 @@ app.post('/api/submit-repo', async (req, res) => {
     if (error) {
       console.error("Error updating links in Supabase:", error.message);
     } else {
-      console.log(`✅ Submitted Links for ${teamName} (${teamId}): Repo="${updatePayload.repo_url||''}", Live="${updatePayload.live_url||''}"`);
+      console.log(`✅ Submitted Links for ${teamName} (${teamId}): Repo="${updatePayload.repo_url||''}", Live="${updatePayload.live_url||''}", PPT="${updatePayload.ppt_url||''}"`);
     }
   } catch (e) {
     console.error("Supabase Submission Error:", e.message);
   }
 
-  // Broadcast updated scores & repo/live links via WebSockets
   const updatedScores = await fetchAllScores();
   broadcastScores(updatedScores);
 
-  res.json({
+  return res.json({
     success: true,
     teamId,
     repoUrl: repoStore[teamId] || '',
     liveUrl: liveStore[teamId] || '',
-    message: `Links submitted successfully for ${teamName}!`
+    pptUrl: pptStore[teamId] || '',
+    message: `Links & Presentation submitted successfully for ${teamName}!`
   });
-});
+}
+
+app.post('/api/submit-repo', handleSubmission);
 
 app.post('/api/scores', async (req, res) => {
+  if (req.query?.action === 'submit-repo') {
+    return handleSubmission(req, res);
+  }
+
   const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
   if (reqPass !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: "Unauthorized. Valid Admin Password required." });
@@ -230,7 +249,6 @@ app.post('/api/scores', async (req, res) => {
 
   memoryStore[teamId] = numScore;
 
-  // Fetch updated scores and broadcast to WebSockets instantly
   const updatedScores = await fetchAllScores();
   broadcastScores(updatedScores);
 
@@ -256,7 +274,6 @@ app.post('/api/scores/reset', async (req, res) => {
 
   HARDCODED_TEAMS.forEach(t => memoryStore[t.id] = 0);
 
-  // Fetch reset scores and broadcast to WebSockets instantly
   const updatedScores = await fetchAllScores();
   broadcastScores(updatedScores);
 
@@ -265,6 +282,6 @@ app.post('/api/scores/reset', async (req, res) => {
 
 initDB().then(() => {
   server.listen(PORT, () => {
-    console.log(`🚀 Code for the Nation Server with WebSocket running at http://localhost:${PORT}`);
+    console.log(`🚀 Code for the Nation Server running at http://localhost:${PORT}`);
   });
 });
