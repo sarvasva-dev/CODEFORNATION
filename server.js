@@ -2,9 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const http = require('http');
+const { WebSocketServer, WebSocket } = require('ws');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
@@ -31,12 +34,62 @@ const HARDCODED_TEAMS = [
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://uqgtwvbwruhwkkpvuanv.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxZ3R3dmJ3cnVod2trcHZ1YW52Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQzNTc0MSwiZXhwIjoyMTAyMDExNzQxfQ.gUNRU-y98XkHGMe2S0hVFKzPCRwp-Kvy84Kf6E8R0Hw";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// WebSocket Server for Ultra-Fast Live Broadcasting
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', async (ws) => {
+  console.log('⚡ [WebSocket] Client connected to live leaderboard stream.');
+  
+  // Send current scores immediately upon connection
+  const scores = await fetchAllScores();
+  ws.send(JSON.stringify({ type: 'SCORES_UPDATED', scores }));
+
+  ws.on('close', () => {
+    console.log('🔌 [WebSocket] Client disconnected.');
+  });
+});
+
+function broadcastScores(scores) {
+  const payload = JSON.stringify({ type: 'SCORES_UPDATED', scores });
+  let count = 0;
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+      count++;
+    }
+  });
+  console.log(`📡 [WebSocket Broadcast] Sent live scores to ${count} active clients.`);
+}
 
 // Memory fallback store if DB is offline or table not created yet
 const memoryStore = {};
 HARDCODED_TEAMS.forEach(t => memoryStore[t.id] = 0);
+
+async function fetchAllScores() {
+  try {
+    const { data, error } = await supabase.from('teams').select('id, name, score');
+    if (!error && data) {
+      const scoreMap = {};
+      data.forEach(d => { scoreMap[d.id] = Number(d.score) || 0; });
+
+      return HARDCODED_TEAMS.map(team => ({
+        ...team,
+        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (memoryStore[team.id] || 0)
+      }));
+    }
+  } catch (e) {
+    console.error("Error fetching scores from Supabase:", e.message);
+  }
+
+  return HARDCODED_TEAMS.map(team => ({
+    ...team,
+    score: memoryStore[team.id] || 0
+  }));
+}
 
 // Initialize & seed missing hardcoded teams in Supabase
 async function initDB() {
@@ -68,32 +121,10 @@ async function initDB() {
   }
 }
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
-
 // API Routes
 app.get('/api/scores', async (req, res) => {
-  try {
-    const { data, error } = await supabase.from('teams').select('id, name, score');
-    if (!error && data) {
-      const scoreMap = {};
-      data.forEach(d => { scoreMap[d.id] = Number(d.score) || 0; });
-
-      const result = HARDCODED_TEAMS.map(team => ({
-        ...team,
-        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (memoryStore[team.id] || 0)
-      }));
-      return res.json(result);
-    }
-  } catch (e) {
-    console.error("Error fetching scores from Supabase:", e.message);
-  }
-
-  // Fallback
-  const result = HARDCODED_TEAMS.map(team => ({
-    ...team,
-    score: memoryStore[team.id] || 0
-  }));
-  res.json(result);
+  const scores = await fetchAllScores();
+  res.json(scores);
 });
 
 app.post('/api/scores', async (req, res) => {
@@ -126,6 +157,11 @@ app.post('/api/scores', async (req, res) => {
   }
 
   memoryStore[teamId] = numScore;
+
+  // Fetch updated scores and broadcast to WebSockets instantly
+  const updatedScores = await fetchAllScores();
+  broadcastScores(updatedScores);
+
   res.json({ success: true, teamId, score: numScore });
 });
 
@@ -147,11 +183,16 @@ app.post('/api/scores/reset', async (req, res) => {
   }
 
   HARDCODED_TEAMS.forEach(t => memoryStore[t.id] = 0);
+
+  // Fetch reset scores and broadcast to WebSockets instantly
+  const updatedScores = await fetchAllScores();
+  broadcastScores(updatedScores);
+
   res.json({ success: true, message: "All scores reset to 0" });
 });
 
 initDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Code for the Nation Server running at http://localhost:${PORT}`);
+  server.listen(PORT, () => {
+    console.log(`🚀 Code for the Nation Server with WebSocket running at http://localhost:${PORT}`);
   });
 });

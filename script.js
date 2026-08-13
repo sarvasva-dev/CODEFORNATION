@@ -1,10 +1,10 @@
-// ===== VSICS Hackathon Leaderboard Engine (Supabase + LocalStorage Hybrid with Admin Protection) =====
+// ===== VSICS Hackathon Leaderboard Engine (Supabase + WebSockets Real-Time Sync) =====
 const STORAGE_KEY = 'vsics_hackathon_leaderboard_v2';
 const API_BASE = '/api/scores';
 const ADMIN_PASSWORD = '##HELLOCODEFORNATION';
 const ADMIN_AUTH_KEY = 'vsics_admin_authenticated';
 
-console.log('🚀 [VSICS Leaderboard] Initializing Supabase-Connected Engine...');
+console.log('🚀 [VSICS Leaderboard] Initializing Supabase + WebSocket Engine...');
 
 const HARDCODED_TEAMS = [
   { id: 'team-1', name: 'Built4Bharat' },
@@ -23,6 +23,9 @@ const HARDCODED_TEAMS = [
   { id: 'team-14', name: 'Flexbox Fanatics' },
   { id: 'team-15', name: 'The Dominaters' }
 ];
+
+let socket = null;
+let reconnectTimer = null;
 
 function getAdminHeaders() {
   return {
@@ -59,6 +62,55 @@ function getTeams() {
     ...team,
     score: map[team.id] !== undefined ? Math.max(0, parseFloat(map[team.id]) || 0) : 0
   }));
+}
+
+// WebSocket Live Client Connection with Auto-reconnect
+function initWebSocket(onScoresUpdate) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host || 'localhost:3000';
+  const wsUrl = `${protocol}//${host}`;
+
+  try {
+    console.log(`🔌 [WebSocket Client] Connecting to ${wsUrl}...`);
+    socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      console.log('⚡ [WebSocket Client] Realtime connection established.');
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'SCORES_UPDATED' && Array.isArray(message.scores)) {
+          console.log('📡 [WebSocket Broadcast] Instant score update received!');
+          const map = getScoreMap();
+          message.scores.forEach(item => {
+            if (item.id && item.score !== undefined) {
+              map[item.id] = Number(item.score) || 0;
+            }
+          });
+          saveScoreMap(map);
+          if (typeof onScoresUpdate === 'function') {
+            onScoresUpdate();
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing WebSocket message:', err);
+      }
+    };
+
+    socket.onclose = () => {
+      console.warn('⚠️ [WebSocket Client] Disconnected. Retrying in 3 seconds...');
+      reconnectTimer = setTimeout(() => initWebSocket(onScoresUpdate), 3000);
+    };
+
+    socket.onerror = (err) => {
+      console.warn('⚠️ [WebSocket Client] Connection error:', err);
+    };
+  } catch (e) {
+    console.warn('WebSocket connection failed/unsupported:', e.message);
+  }
 }
 
 // Update single team score locally and sync to Supabase API
@@ -391,8 +443,9 @@ if (scoreForm) {
     });
   }
 
-  // Initialize Admin Authentication Check
+  // Initialize Admin Authentication Check & WebSocket
   checkAdminAuth();
+  initWebSocket(() => renderEntriesUI());
 }
 
 // =========================================================
@@ -490,11 +543,16 @@ if (leaderboardBody) {
     if (map) renderLeaderboardUI();
   });
 
-  // Polling update every 2 seconds for instant refresh from Supabase
+  // Initialize Ultra-Fast Real-Time WebSocket Connection
+  initWebSocket(() => renderLeaderboardUI());
+
+  // Polling backup fallback every 5 seconds if WebSocket drops
   setInterval(async () => {
-    const updatedMap = await fetchServerScores();
-    renderLeaderboardUI();
-  }, 2000);
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      const updatedMap = await fetchServerScores();
+      renderLeaderboardUI();
+    }
+  }, 5000);
 
   // Storage listener for instant cross-tab sync
   window.addEventListener('storage', (e) => {
