@@ -3,33 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Code for the Nation | Score Control Panel</title>
+<title>VSICS | Code for the Nation - Score Control Panel</title>
 <link rel="stylesheet" href="style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
 
+  <!-- Indian Tricolor Header Bar -->
   <div class="tricolor-bar"></div>
 
+  <!-- Top Bar with VSICS Branding -->
   <header class="topbar">
     <div class="logo-block">
-      <div class="chakra">☬</div>
-      <div>
-        <h1>Code for the Nation</h1>
-        <p class="subtitle">Hackathon Score Control Panel</p>
+      <div class="vsics-badge">VSICS</div>
+      <div class="brand-info">
+        <p class="institution">Dr. Virendra Swarup Institute of Computer Studies</p>
+        <h1>CODE FOR THE NATION 2026</h1>
+        <p class="subtitle">Thematic Website Development Competition | Control Panel</p>
       </div>
     </div>
-    <a href="leaderboard.html" class="nav-btn">View Live Leaderboard →</a>
+    <div class="topbar-actions">
+      <a href="leaderboard.html" class="nav-btn">🏆 View Live Leaderboard →</a>
+    </div>
   </header>
 
+  <!-- Event Banner Strip -->
+  <div class="event-strip">
+    <div class="tag-item">💡 <span>INNOVATE</span> Your Ideas</div>
+    <div class="tag-item">💻 <span>BUILD</span> With Code</div>
+    <div class="tag-item">🎨 <span>DESIGN</span> The Future</div>
+    <div class="tag-item">🚀 <span>DEPLOY</span> Your Impact</div>
+    <div class="tag-item">🇮🇳 <span>INSPIRE</span> The Nation</div>
+  </div>
+
   <main class="container">
-    <!-- Score Update Card -->
+    <!-- Score Update Form Card -->
     <section class="card form-card">
       <div class="card-header">
         <h2>Update Team Score</h2>
-        <span class="badge lock-badge">🔒 Team Names Hardcoded</span>
+        <span class="badge lock-badge">🔒 15 Official Teams Locked</span>
       </div>
       <form id="scoreForm">
         <div class="form-grid">
@@ -41,8 +55,8 @@
           </div>
 
           <div class="form-group">
-            <label for="teamScore">New Score</label>
-            <input type="number" id="teamScore" placeholder="e.g. 85" required min="0" max="10000" step="1">
+            <label for="teamScore">New Score (Points)</label>
+            <input type="number" id="teamScore" placeholder="e.g. 95" required min="0" max="10000" step="1">
           </div>
         </div>
 
@@ -54,11 +68,11 @@
       <p id="statusMsg" class="status-msg"></p>
     </section>
 
-    <!-- Hardcoded Roster Table -->
+    <!-- Hardcoded Roster Table Card -->
     <section class="card list-card">
       <div class="card-header">
         <h2>Official Teams Roster (<span id="entryCount">15</span>)</h2>
-        <p class="section-desc">Scores can be edited using quick adjustment buttons or directly in the score column below.</p>
+        <p class="section-desc">Scores can be edited using quick adjustment pills or directly in the table inputs below.</p>
       </div>
       <div class="table-wrap">
         <table id="entriesTable">
@@ -67,7 +81,7 @@
               <th style="width: 80px;">#</th>
               <th>Team Name</th>
               <th style="width: 160px;">Score</th>
-              <th style="width: 260px;">Quick Adjust</th>
+              <th style="width: 270px;">Quick Adjust</th>
             </tr>
           </thead>
           <tbody id="entriesBody"></tbody>
@@ -76,8 +90,12 @@
     </section>
   </main>
 
-  <footer class="footer">
-    Data synced live in browser (localStorage) · VSICS Hackathon 2026 · Built for Bharat 🇮🇳
+  <!-- Official Poster Footer -->
+  <footer class="poster-footer">
+    <div class="slogan">"CODE TODAY, BUILD TOMORROW, EMPOWER THE NATION!"</div>
+    <div class="subtext">
+      VSICS Hackathon 2026 · Dr. Virendra Swarup Institute of Computer Studies · Jai Hind 🇮🇳
+    </div>
   </footer>
 
   <script src="script.js"></script>
