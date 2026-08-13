@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "**/*", "use": "@vercel/static" }
+  "rewrites": [
+    { "source": "/api/scores/reset", "destination": "/api/scores?action=reset" },
+    { "source": "/api/scores", "destination": "/api/scores" }
   ]
 }
