@@ -146,7 +146,7 @@ function escapeHtml(str) {
 // Export Leaderboard Data to CSV
 function exportLeaderboardCSV() {
   console.log('📥 [CSV Export] Generating CSV file...');
-  const teams = getSortedTeams();
+  const teams = getSortedTeams().filter(t => t.score > 0);
   let csvContent = 'Rank,Team Name,Score\n';
   
   teams.forEach((t, i) => {
@@ -411,24 +411,25 @@ if (leaderboardBody) {
   const rankClasses = ['gold', 'silver', 'bronze'];
 
   function renderLeaderboardUI() {
-    const allTeams = getSortedTeams();
+    // Only display teams that have been assigned a score (> 0)
+    const activeTeams = getSortedTeams().filter(t => t.score > 0);
     const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const filteredTeams = query
-      ? allTeams.filter(t => t.name.toLowerCase().includes(query))
-      : allTeams;
+      ? activeTeams.filter(t => t.name.toLowerCase().includes(query))
+      : activeTeams;
 
     leaderboardBody.innerHTML = '';
     if (podium) podium.innerHTML = '';
 
-    if (allTeams.length === 0) {
+    if (activeTeams.length === 0) {
       if (emptyMsg) emptyMsg.style.display = 'block';
       return;
     }
     if (emptyMsg) emptyMsg.style.display = 'none';
 
-    // Podium (top 3)
+    // Podium (top 3 with score > 0)
     if (podium && !query) {
-      const top3 = allTeams.slice(0, 3);
+      const top3 = activeTeams.slice(0, 3);
       const podiumOrder = [
         { rank: 2, data: top3[1] },
         { rank: 1, data: top3[0] },
@@ -450,9 +451,9 @@ if (leaderboardBody) {
       });
     }
 
-    // Full Rankings Table
+    // Full Rankings Table (only teams with score > 0)
     filteredTeams.forEach((team) => {
-      const overallRank = allTeams.findIndex(t => t.id === team.id) + 1;
+      const overallRank = activeTeams.findIndex(t => t.id === team.id) + 1;
       const tr = document.createElement('tr');
       const rankClass = rankClasses[overallRank - 1] || '';
       
