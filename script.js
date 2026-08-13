@@ -177,18 +177,29 @@ function initWebSocket(onScoresUpdate) {
   } catch (e) { socket = null; }
 }
 
-// Update single team score locally and sync to Supabase API
-async function setTeamScore(teamId, newScore) {
+// Update team score and links locally and sync to Supabase API
+async function setTeamScore(teamId, newScore, repoUrl, liveUrl, pptUrl) {
   const map = getScoreMap();
+  const repoMap = getRepoMap();
+  const liveMap = getLiveMap();
+  const pptMap = getPptMap();
+
   const validScore = Math.max(0, parseFloat(newScore) || 0);
   map[teamId] = validScore;
+  if (repoUrl !== undefined) repoMap[teamId] = repoUrl;
+  if (liveUrl !== undefined) liveMap[teamId] = liveUrl;
+  if (pptUrl !== undefined) pptMap[teamId] = pptUrl;
+
   saveScoreMap(map);
+  saveRepoMap(repoMap);
+  saveLiveMap(liveMap);
+  savePptMap(pptMap);
 
   try {
     await fetch(API_BASE, {
       method: 'POST',
       headers: getAdminHeaders(),
-      body: JSON.stringify({ teamId, score: validScore, adminPassword: ADMIN_PASSWORD })
+      body: JSON.stringify({ teamId, score: validScore, repoUrl, liveUrl, pptUrl, adminPassword: ADMIN_PASSWORD })
     });
   } catch (err) {}
 }
@@ -673,11 +684,18 @@ if (scoreForm) {
     }, 2500);
   }
 
+  const adminRepoUrl = document.getElementById('adminRepoUrl');
+  const adminLiveUrl = document.getElementById('adminLiveUrl');
+  const adminPptUrl = document.getElementById('adminPptUrl');
+
   teamSelect.addEventListener('change', () => {
     const teamId = teamSelect.value;
     const team = getTeams().find(t => t.id === teamId);
     if (team) {
       teamScoreInput.value = team.score;
+      if (adminRepoUrl) adminRepoUrl.value = team.repo_url || '';
+      if (adminLiveUrl) adminLiveUrl.value = team.live_url || '';
+      if (adminPptUrl) adminPptUrl.value = team.ppt_url || '';
       teamScoreInput.focus();
     }
   });
@@ -686,6 +704,9 @@ if (scoreForm) {
     e.preventDefault();
     const teamId = teamSelect.value;
     const score = parseFloat(teamScoreInput.value);
+    const repoUrl = adminRepoUrl ? adminRepoUrl.value.trim() : undefined;
+    const liveUrl = adminLiveUrl ? adminLiveUrl.value.trim() : undefined;
+    const pptUrl = adminPptUrl ? adminPptUrl.value.trim() : undefined;
 
     if (!teamId) {
       showStatus('Please select a team from the list.', 'error');
@@ -697,9 +718,9 @@ if (scoreForm) {
       return;
     }
 
-    await setTeamScore(teamId, score);
+    await setTeamScore(teamId, score, repoUrl, liveUrl, pptUrl);
     const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
-    showStatus(`Score for "${teamName}" set to ${score}.`, 'success');
+    showStatus(`Score & Project Details for "${teamName}" updated successfully!`, 'success');
     renderEntriesUI();
   });
 

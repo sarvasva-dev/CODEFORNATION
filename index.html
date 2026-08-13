@@ -48,29 +48,44 @@
       <img src="assets/hero_banner.svg" alt="VSICS Code for the Nation Banner" class="hero-banner-img">
     </div>
 
-    <!-- Score Update Form Card -->
+    <!-- Score & Project Details Update Form Card -->
     <section class="card form-card">
       <div class="card-header">
-        <h2>Update Team Score</h2>
-        <span class="badge lock-badge">🔒 16 Official Teams Locked</span>
+        <h2>Update Team Score & Project Links</h2>
+        <span class="badge lock-badge">🔒 16 Official Teams</span>
       </div>
       <form id="scoreForm">
         <div class="form-grid">
           <div class="form-group">
-            <label for="teamSelect">Select Team</label>
+            <label for="teamSelect">Select Team <span class="req">*</span></label>
             <select id="teamSelect" required>
-              <option value="" disabled selected>-- Select Hardcoded Team --</option>
+              <option value="" disabled selected>-- Select Official Team --</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label for="teamScore">New Score (Points)</label>
+            <label for="teamScore">New Score (Points) <span class="req">*</span></label>
             <input type="number" id="teamScore" placeholder="e.g. 95" required min="0" max="10000" step="1">
+          </div>
+
+          <div class="form-group">
+            <label for="adminRepoUrl">GitHub Repo URL</label>
+            <input type="url" id="adminRepoUrl" placeholder="https://github.com/username/repository">
+          </div>
+
+          <div class="form-group">
+            <label for="adminLiveUrl">Live Website URL</label>
+            <input type="url" id="adminLiveUrl" placeholder="https://myteam.vercel.app">
+          </div>
+
+          <div class="form-group" style="grid-column: span 2;">
+            <label for="adminPptUrl">PPT Presentation URL / Google Slides Link</label>
+            <input type="url" id="adminPptUrl" placeholder="https://docs.google.com/presentation/d/... or uploaded PPT link">
           </div>
         </div>
 
         <div class="btn-row">
-          <button type="submit" class="btn primary">Set / Update Score</button>
+          <button type="submit" class="btn primary">Set / Update Score & Project Links</button>
           <button type="button" id="resetAllBtn" class="btn danger">Reset All Scores to 0</button>
         </div>
       </form>
