@@ -26,6 +26,7 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <button id="logoutBtn" class="btn-logout" style="display:none;">🔒 Logout Admin</button>
       <a href="leaderboard.html" class="nav-btn">🏆 View Live Leaderboard →</a>
     </div>
   </header>
@@ -39,7 +40,7 @@
     <div class="tag-item">🇮🇳 <span>INSPIRE</span> The Nation</div>
   </div>
 
-  <main class="container">
+  <main class="container" id="adminMainContent" style="display:none;">
     <!-- SVG Vector Hero Banner -->
     <div class="hero-banner-wrap">
       <img src="assets/hero_banner.svg" alt="VSICS Code for the Nation Banner" class="hero-banner-img">
@@ -95,6 +96,32 @@
       </div>
     </section>
   </main>
+
+  <!-- Admin Login Modal Overlay -->
+  <div id="adminLoginModal" class="login-overlay">
+    <div class="login-card" id="loginCard">
+      <div class="login-header">
+        <div class="login-icon">🔐</div>
+        <h2>VSICS Admin Login</h2>
+        <p>Enter the admin password to access the Control Panel</p>
+      </div>
+      <form id="adminLoginForm">
+        <div class="form-group">
+          <label for="adminPassInput">Admin Password</label>
+          <div class="pass-input-wrap">
+            <input type="password" id="adminPassInput" placeholder="Enter Admin Password" required autofocus autocomplete="current-password">
+            <button type="button" id="togglePassBtn" class="toggle-pass-btn" title="Toggle password visibility">👁️</button>
+          </div>
+        </div>
+        <button type="submit" class="btn primary login-submit-btn">Unlock Control Panel →</button>
+      </form>
+      <div id="loginStatus" class="login-status"></div>
+      <div class="login-footer">
+        <span>Public Live Leaderboard is open: </span>
+        <a href="leaderboard.html">View Live Leaderboard 🏆</a>
+      </div>
+    </div>
+  </div>
 
   <!-- Official Poster Footer -->
   <footer class="poster-footer">

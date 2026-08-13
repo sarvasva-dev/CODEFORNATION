@@ -1,7 +1,10 @@
-// ===== VSICS Hackathon Leaderboard Engine (Pure LocalStorage) =====
+// ===== VSICS Hackathon Leaderboard Engine (Supabase + LocalStorage Hybrid with Admin Protection) =====
 const STORAGE_KEY = 'vsics_hackathon_leaderboard_v2';
+const API_BASE = '/api/scores';
+const ADMIN_PASSWORD = '##HELLOCODEFORNATION';
+const ADMIN_AUTH_KEY = 'vsics_admin_authenticated';
 
-console.log('🚀 [VSICS Leaderboard] Initializing Pure LocalStorage Engine...');
+console.log('🚀 [VSICS Leaderboard] Initializing Supabase-Connected Engine...');
 
 const HARDCODED_TEAMS = [
   { id: 'team-1', name: 'Built4Bharat' },
@@ -20,6 +23,13 @@ const HARDCODED_TEAMS = [
   { id: 'team-14', name: 'Flexbox Fanatics' },
   { id: 'team-15', name: 'The Dominaters' }
 ];
+
+function getAdminHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'x-admin-password': ADMIN_PASSWORD
+  };
+}
 
 // Read score map from LocalStorage
 function getScoreMap() {
@@ -51,21 +61,75 @@ function getTeams() {
   }));
 }
 
-// Update single team score in LocalStorage
-function setTeamScore(teamId, newScore) {
+// Update single team score locally and sync to Supabase API
+async function setTeamScore(teamId, newScore) {
   const map = getScoreMap();
   const validScore = Math.max(0, parseFloat(newScore) || 0);
   map[teamId] = validScore;
   saveScoreMap(map);
   console.log(`💾 [LocalStorage] Updated "${teamId}" -> ${validScore} pts`);
+
+  // Sync with Supabase API
+  try {
+    await fetch(API_BASE, {
+      method: 'POST',
+      headers: getAdminHeaders(),
+      body: JSON.stringify({ teamId, score: validScore, adminPassword: ADMIN_PASSWORD })
+    });
+    console.log(`⚡ [Supabase API] Saved score for ${teamId}`);
+  } catch (err) {
+    console.warn('⚠️ [Supabase API] Network push failed, cached locally:', err.message);
+  }
 }
 
-// Reset all team scores to 0 in LocalStorage
-function resetAllScores() {
+// Reset all team scores to 0 locally and sync to Supabase API
+async function resetAllScores() {
   const map = {};
   HARDCODED_TEAMS.forEach(t => map[t.id] = 0);
   saveScoreMap(map);
   console.log('🧹 [LocalStorage] All team scores reset to 0.');
+
+  try {
+    await fetch(`${API_BASE}?action=reset`, {
+      method: 'POST',
+      headers: getAdminHeaders(),
+      body: JSON.stringify({ adminPassword: ADMIN_PASSWORD })
+    });
+    console.log('⚡ [Supabase API] Reset all scores on database.');
+  } catch (err) {
+    console.warn('⚠️ [Supabase API] Network reset failed:', err.message);
+  }
+}
+
+// Sync scores from Supabase API to LocalStorage
+async function fetchServerScores() {
+  try {
+    const res = await fetch(API_BASE);
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    if (Array.isArray(data)) {
+      const map = getScoreMap();
+      let updated = false;
+      data.forEach(item => {
+        if (item.id && item.score !== undefined) {
+          if (map[item.id] !== item.score) {
+            map[item.id] = Number(item.score) || 0;
+            updated = true;
+          }
+        }
+      });
+
+      if (updated) {
+        saveScoreMap(map);
+        console.log('🔄 [Supabase API] Local state updated from server.');
+      }
+      return map;
+    }
+  } catch (err) {
+    // Offline or server not running - local store used silently
+  }
+  return null;
 }
 
 // Return teams sorted by score descending
@@ -115,6 +179,82 @@ if (scoreForm) {
   const entriesBody = document.getElementById('entriesBody');
   const entryCount = document.getElementById('entryCount');
   const resetAllBtn = document.getElementById('resetAllBtn');
+
+  const adminLoginModal = document.getElementById('adminLoginModal');
+  const adminMainContent = document.getElementById('adminMainContent');
+  const adminLoginForm = document.getElementById('adminLoginForm');
+  const adminPassInput = document.getElementById('adminPassInput');
+  const loginStatus = document.getElementById('loginStatus');
+  const loginCard = document.getElementById('loginCard');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const togglePassBtn = document.getElementById('togglePassBtn');
+
+  function checkAdminAuth() {
+    const isAuthed = sessionStorage.getItem(ADMIN_AUTH_KEY) === 'true';
+    if (isAuthed) {
+      if (adminLoginModal) adminLoginModal.style.display = 'none';
+      if (adminMainContent) adminMainContent.style.display = 'block';
+      if (logoutBtn) logoutBtn.style.display = 'inline-block';
+      populateDropdown();
+      renderEntriesUI();
+      fetchServerScores().then(map => {
+        if (map) renderEntriesUI();
+      });
+    } else {
+      if (adminLoginModal) adminLoginModal.style.display = 'flex';
+      if (adminMainContent) adminMainContent.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+      if (adminPassInput) adminPassInput.focus();
+    }
+  }
+
+  if (togglePassBtn && adminPassInput) {
+    togglePassBtn.addEventListener('click', () => {
+      if (adminPassInput.type === 'password') {
+        adminPassInput.type = 'text';
+        togglePassBtn.textContent = '🙈';
+      } else {
+        adminPassInput.type = 'password';
+        togglePassBtn.textContent = '👁️';
+      }
+    });
+  }
+
+  if (adminLoginForm) {
+    adminLoginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const enteredPass = adminPassInput.value.trim();
+      if (enteredPass === ADMIN_PASSWORD) {
+        sessionStorage.setItem(ADMIN_AUTH_KEY, 'true');
+        loginStatus.textContent = '✅ Access Granted! Unlocking...';
+        loginStatus.className = 'login-status success';
+        setTimeout(() => {
+          adminPassInput.value = '';
+          loginStatus.textContent = '';
+          checkAdminAuth();
+        }, 500);
+      } else {
+        loginStatus.textContent = '❌ Incorrect Admin Password! Access Denied.';
+        loginStatus.className = 'login-status error';
+        if (loginCard) {
+          loginCard.classList.remove('shake');
+          void loginCard.offsetWidth;
+          loginCard.classList.add('shake');
+        }
+        adminPassInput.value = '';
+        adminPassInput.focus();
+      }
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to log out of Admin Control Panel?')) {
+        sessionStorage.removeItem(ADMIN_AUTH_KEY);
+        checkAdminAuth();
+      }
+    });
+  }
 
   function populateDropdown() {
     teamSelect.innerHTML = '<option value="" disabled selected>-- Select Hardcoded Team --</option>';
@@ -173,7 +313,7 @@ if (scoreForm) {
     }
   });
 
-  scoreForm.addEventListener('submit', (e) => {
+  scoreForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const teamId = teamSelect.value;
     const score = parseFloat(teamScoreInput.value);
@@ -188,13 +328,13 @@ if (scoreForm) {
       return;
     }
 
-    setTeamScore(teamId, score);
+    await setTeamScore(teamId, score);
     const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
     showStatus(`Score for "${teamName}" set to ${score}.`, 'success');
     renderEntriesUI();
   });
 
-  entriesBody.addEventListener('click', (e) => {
+  entriesBody.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
     const teamId = btn.getAttribute('data-id');
@@ -206,7 +346,7 @@ if (scoreForm) {
     if (btn.classList.contains('quick-btn')) {
       const delta = parseFloat(btn.getAttribute('data-delta')) || 0;
       const newScore = Math.max(0, team.score + delta);
-      setTeamScore(teamId, newScore);
+      await setTeamScore(teamId, newScore);
       showStatus(`"${team.name}" score updated to ${newScore}`, 'success');
       renderEntriesUI();
       if (teamSelect.value === teamId) {
@@ -217,7 +357,7 @@ if (scoreForm) {
       const input = row.querySelector('.table-score-input');
       const newScore = parseFloat(input.value);
       if (!isNaN(newScore) && newScore >= 0) {
-        setTeamScore(teamId, newScore);
+        await setTeamScore(teamId, newScore);
         showStatus(`"${team.name}" updated to ${newScore}.`, 'success');
         renderEntriesUI();
       } else {
@@ -226,13 +366,13 @@ if (scoreForm) {
     }
   });
 
-  entriesBody.addEventListener('keydown', (e) => {
+  entriesBody.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter' && e.target.classList.contains('table-score-input')) {
       const teamId = e.target.getAttribute('data-id');
       const newScore = parseFloat(e.target.value);
       const team = getTeams().find(t => t.id === teamId);
       if (team && !isNaN(newScore) && newScore >= 0) {
-        setTeamScore(teamId, newScore);
+        await setTeamScore(teamId, newScore);
         showStatus(`"${team.name}" updated to ${newScore}.`, 'success');
         renderEntriesUI();
       }
@@ -240,9 +380,9 @@ if (scoreForm) {
   });
 
   if (resetAllBtn) {
-    resetAllBtn.addEventListener('click', () => {
+    resetAllBtn.addEventListener('click', async () => {
       if (confirm('Are you sure you want to reset ALL team scores to 0?')) {
-        resetAllScores();
+        await resetAllScores();
         renderEntriesUI();
         teamScoreInput.value = '';
         teamSelect.value = '';
@@ -251,17 +391,17 @@ if (scoreForm) {
     });
   }
 
-  populateDropdown();
-  renderEntriesUI();
+  // Initialize Admin Authentication Check
+  checkAdminAuth();
 }
 
 // =========================================================
-// ============  LEADERBOARD (DISPLAY) PAGE LOGIC  ==========
+// ============  LEADERBOARD (PUBLIC DISPLAY) PAGE LOGIC  ===
 // =========================================================
 const leaderboardBody = document.getElementById('leaderboardBody');
 
 if (leaderboardBody) {
-  console.log('🏆 [Leaderboard] Live Leaderboard loaded.');
+  console.log('🏆 [Leaderboard] Public Live Leaderboard loaded (No Password Required).');
   const podium = document.getElementById('podium');
   const emptyMsg = document.getElementById('emptyMsg');
   const exportBtn = document.getElementById('exportBtn');
@@ -344,8 +484,16 @@ if (leaderboardBody) {
   // Initial render
   renderLeaderboardUI();
 
-  // Polling update every 1.5 seconds for instant refresh
-  setInterval(renderLeaderboardUI, 1500);
+  // Initial server sync
+  fetchServerScores().then(map => {
+    if (map) renderLeaderboardUI();
+  });
+
+  // Polling update every 2 seconds for instant refresh from Supabase
+  setInterval(async () => {
+    const updatedMap = await fetchServerScores();
+    renderLeaderboardUI();
+  }, 2000);
 
   // Storage listener for instant cross-tab sync
   window.addEventListener('storage', (e) => {

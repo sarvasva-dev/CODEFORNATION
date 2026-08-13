@@ -1,15 +1,8 @@
-const dns = require('dns');
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4']);
-} catch (e) {
-  console.warn('DNS server override warning:', e.message);
-}
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,62 +29,63 @@ const HARDCODED_TEAMS = [
   { id: 'team-15', name: 'The Dominaters' }
 ];
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://upcybercrime72_db_user:klx6U8Bcmt1miOT2@cluster0.hwvlfaa.mongodb.net/codefornation?retryWrites=true&w=majority&appName=Cluster0";
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://uqgtwvbwruhwkkpvuanv.supabase.co";
+const SUPABASE_KEY = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxZ3R3dmJ3cnVod2trcHZ1YW52Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQzNTc0MSwiZXhwIjoyMTAyMDExNzQxfQ.gUNRU-y98XkHGMe2S0hVFKzPCRwp-Kvy84Kf6E8R0Hw";
 
-let dbCollection = null;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Memory fallback store if DB is offline or table not created yet
+const memoryStore = {};
+HARDCODED_TEAMS.forEach(t => memoryStore[t.id] = 0);
+
+// Initialize & seed missing hardcoded teams in Supabase
 async function initDB() {
   try {
-    console.log("Connecting to MongoDB Atlas...");
-    const client = new MongoClient(MONGODB_URI, {
-      serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-      }
-    });
-
-    await client.connect();
-    console.log("✅ MongoDB Atlas Connected Successfully!");
-    
-    const db = client.db("codefornation");
-    dbCollection = db.collection("teams");
-
-    // Seed/Ensure 15 hardcoded teams exist in DB
-    for (const team of HARDCODED_TEAMS) {
-      await dbCollection.updateOne(
-        { id: team.id },
-        { $setOnInsert: { id: team.id, name: team.name, score: 0 } },
-        { upsert: true }
-      );
+    console.log("⚡ Checking Supabase Connection...");
+    const { data, error } = await supabase.from('teams').select('id, name, score');
+    if (error) {
+      console.warn("⚠️ Supabase Notice:", error.message);
+      console.log("👉 Please run schema.sql in Supabase SQL Editor to create the table.");
+      return;
     }
-    console.log("✅ 15 Hardcoded Teams Initialized in MongoDB Atlas.");
+    console.log("✅ Supabase Connected Successfully! Found", data.length, "teams.");
+
+    // Seed missing teams if needed
+    const existingIds = new Set(data.map(d => d.id));
+    const missingTeams = HARDCODED_TEAMS.filter(t => !existingIds.has(t.id)).map(t => ({
+      id: t.id,
+      name: t.name,
+      score: 0
+    }));
+
+    if (missingTeams.length > 0) {
+      const { error: seedErr } = await supabase.from('teams').upsert(missingTeams);
+      if (seedErr) console.warn("Seed error:", seedErr.message);
+      else console.log(`✅ Seeded ${missingTeams.length} missing teams in Supabase.`);
+    }
   } catch (err) {
-    console.error("❌ MongoDB Atlas Connection Error:", err.message);
-    console.log("⚠️ Operating in offline mode with in-memory / fallback logic.");
+    console.error("❌ Supabase Init Error:", err.message);
   }
 }
 
-// Memory fallback store if DB is offline
-const memoryStore = {};
-HARDCODED_TEAMS.forEach(t => memoryStore[t.id] = 0);
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
 
 // API Routes
 app.get('/api/scores', async (req, res) => {
   try {
-    if (dbCollection) {
-      const docs = await dbCollection.find({}).toArray();
+    const { data, error } = await supabase.from('teams').select('id, name, score');
+    if (!error && data) {
       const scoreMap = {};
-      docs.forEach(d => { scoreMap[d.id] = d.score; });
+      data.forEach(d => { scoreMap[d.id] = Number(d.score) || 0; });
 
       const result = HARDCODED_TEAMS.map(team => ({
         ...team,
-        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : 0
+        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (memoryStore[team.id] || 0)
       }));
       return res.json(result);
     }
   } catch (e) {
-    console.error("Error fetching scores:", e.message);
+    console.error("Error fetching scores from Supabase:", e.message);
   }
 
   // Fallback
@@ -103,24 +97,32 @@ app.get('/api/scores', async (req, res) => {
 });
 
 app.post('/api/scores', async (req, res) => {
+  const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
+  if (reqPass !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Unauthorized. Valid Admin Password required." });
+  }
+
   const { teamId, score } = req.body;
   if (!teamId || isNaN(score)) {
     return res.status(400).json({ error: "Invalid teamId or score" });
   }
 
   const numScore = Math.max(0, parseFloat(score));
-  
+  const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
+  const teamName = teamObj ? teamObj.name : teamId;
+
   try {
-    if (dbCollection) {
-      await dbCollection.updateOne(
-        { id: teamId },
-        { $set: { score: numScore } },
-        { upsert: true }
-      );
-      console.log(`Updated team ${teamId} score to ${numScore} in MongoDB`);
+    const { error } = await supabase
+      .from('teams')
+      .upsert({ id: teamId, name: teamName, score: numScore, updated_at: new Date() });
+    
+    if (error) {
+      console.error("Error saving score to Supabase:", error.message);
+    } else {
+      console.log(`Updated team ${teamId} score to ${numScore} in Supabase`);
     }
   } catch (e) {
-    console.error("Error saving score to MongoDB:", e.message);
+    console.error("Supabase Score Save Error:", e.message);
   }
 
   memoryStore[teamId] = numScore;
@@ -128,12 +130,20 @@ app.post('/api/scores', async (req, res) => {
 });
 
 app.post('/api/scores/reset', async (req, res) => {
+  const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
+  if (reqPass !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Unauthorized. Valid Admin Password required." });
+  }
+
   try {
-    if (dbCollection) {
-      await dbCollection.updateMany({}, { $set: { score: 0 } });
-    }
+    const { error } = await supabase
+      .from('teams')
+      .update({ score: 0, updated_at: new Date() })
+      .neq('id', '');
+
+    if (error) console.error("Error resetting scores in Supabase:", error.message);
   } catch (e) {
-    console.error("Error resetting scores in MongoDB:", e.message);
+    console.error("Supabase Reset Error:", e.message);
   }
 
   HARDCODED_TEAMS.forEach(t => memoryStore[t.id] = 0);

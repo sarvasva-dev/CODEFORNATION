@@ -1,11 +1,4 @@
-const dns = require('dns');
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4']);
-} catch (e) {
-  // Ignore in serverless environment
-}
-
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { createClient } = require('@supabase/supabase-js');
 
 const HARDCODED_TEAMS = [
   { id: 'team-1', name: 'Built4Bharat' },
@@ -25,35 +18,13 @@ const HARDCODED_TEAMS = [
   { id: 'team-15', name: 'The Dominaters' }
 ];
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://upcybercrime72_db_user:klx6U8Bcmt1miOT2@cluster0.hwvlfaa.mongodb.net/codefornation?retryWrites=true&w=majority&appName=Cluster0";
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://uqgtwvbwruhwkkpvuanv.supabase.co";
+const SUPABASE_KEY = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxZ3R3dmJ3cnVod2trcHZ1YW52Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQzNTc0MSwiZXhwIjoyMTAyMDExNzQxfQ.gUNRU-y98XkHGMe2S0hVFKzPCRwp-Kvy84Kf6E8R0Hw";
 
-let cachedClient = null;
-let cachedDb = null;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Memory fallback store
 const fallbackStore = {};
 HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
-
-async function connectToDatabase() {
-  if (cachedClient && cachedDb) {
-    return { client: cachedClient, db: cachedDb };
-  }
-
-  const client = new MongoClient(MONGODB_URI, {
-    serverApi: {
-      version: ServerApiVersion.v1,
-      strict: true,
-      deprecationErrors: true,
-    }
-  });
-
-  await client.connect();
-  const db = client.db('codefornation');
-
-  cachedClient = client;
-  cachedDb = db;
-  return { client, db };
-}
 
 module.exports = async function handler(req, res) {
   // Enable CORS headers
@@ -71,26 +42,20 @@ module.exports = async function handler(req, res) {
   }
 
   const isResetAction = req.query?.action === 'reset' || req.url?.includes('/reset');
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
+
+  // Check admin password for any mutation (POST)
+  if (req.method === 'POST') {
+    const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
+    if (reqPass !== ADMIN_PASSWORD) {
+      return res.status(401).json({ error: 'Unauthorized. Valid Admin Password required.' });
+    }
+  }
 
   try {
-    const { db } = await connectToDatabase();
-    const collection = db.collection('teams');
-
-    // Auto-seed hardcoded teams if missing
-    const count = await collection.countDocuments();
-    if (count === 0) {
-      for (const team of HARDCODED_TEAMS) {
-        await collection.updateOne(
-          { id: team.id },
-          { $setOnInsert: { id: team.id, name: team.name, score: 0 } },
-          { upsert: true }
-        );
-      }
-    }
-
     // Handle Reset All Scores
     if (req.method === 'POST' && isResetAction) {
-      await collection.updateMany({}, { $set: { score: 0 } });
+      await supabase.from('teams').update({ score: 0, updated_at: new Date() }).neq('id', '');
       HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
       return res.status(200).json({ success: true, message: 'All team scores reset to 0' });
     }
@@ -105,20 +70,28 @@ module.exports = async function handler(req, res) {
       }
 
       const numScore = Math.max(0, parseFloat(score));
-      await collection.updateOne(
-        { id: teamId },
-        { $set: { score: numScore } },
-        { upsert: true }
-      );
+      const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
+      const teamName = teamObj ? teamObj.name : teamId;
+
+      await supabase.from('teams').upsert({
+        id: teamId,
+        name: teamName,
+        score: numScore,
+        updated_at: new Date()
+      });
+
       fallbackStore[teamId] = numScore;
       return res.status(200).json({ success: true, teamId, score: numScore });
     }
 
     // Handle GET (Fetch all team scores)
     if (req.method === 'GET') {
-      const docs = await collection.find({}).toArray();
+      const { data, error } = await supabase.from('teams').select('id, name, score');
+      
       const scoreMap = {};
-      docs.forEach(d => { scoreMap[d.id] = d.score; });
+      if (!error && data) {
+        data.forEach(d => { scoreMap[d.id] = Number(d.score) || 0; });
+      }
 
       const result = HARDCODED_TEAMS.map(team => ({
         ...team,
@@ -131,7 +104,6 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error('Vercel Serverless Function Error:', err.message);
 
-    // Fallback store handling if DB is temporarily unreachable
     if (req.method === 'POST' && isResetAction) {
       HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
       return res.status(200).json({ success: true, message: 'All team scores reset to 0' });
