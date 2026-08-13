@@ -1094,6 +1094,155 @@ tbody tr:hover { background: #F8FAFC; }
   color: #FFFFFF;
 }
 
+/* ========================================================= */
+/* =================  MOBILE RESPONSIVENESS  =============== */
+/* ========================================================= */
+
+@media (max-width: 900px) {
+  .topbar {
+    padding: 16px 20px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .logo-block {
+    justify-content: flex-start;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .nav-btn, .btn-logout, .logged-admin-badge {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+
+  .container {
+    padding: 16px 12px;
+  }
+
+  .card {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .podium {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 30px;
+  }
+
+  .podium-item {
+    width: 100%;
+    max-width: 380px;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .institution {
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+  }
+
+  .topbar h1 {
+    font-size: 1.15rem;
+    letter-spacing: 0.5px;
+  }
+
+  .subtitle {
+    font-size: 0.78rem;
+  }
+
+  .vsics-badge {
+    width: 44px;
+    height: 44px;
+    font-size: 0.85rem;
+    border-radius: 10px;
+  }
+
+  .event-strip {
+    padding: 8px 10px;
+    gap: 12px;
+    font-size: 0.78rem;
+    overflow-x: auto;
+    white-space: nowrap;
+    justify-content: flex-start;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .form-group[style*="grid-column"] {
+    grid-column: span 1 !important;
+  }
+
+  .btn-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .btn-row .btn {
+    width: 100%;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+  th, td {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+
+  .quick-btns {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .quick-btn, .btn-save {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    min-height: 36px;
+  }
+
+  .login-card {
+    padding: 24px 18px;
+    width: 92%;
+    border-radius: 20px;
+  }
+
+  .login-header h2 {
+    font-size: 1.35rem;
+  }
+
+  .repo-hero-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .whatsapp-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+
 
 
 
