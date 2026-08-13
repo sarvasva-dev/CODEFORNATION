@@ -102,7 +102,8 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
+      const parsedBody = typeof req.body === 'string' ? (JSON.parse(req.body || '{}') || {}) : (req.body || {});
+      const reqPass = req.headers['x-admin-password'] || parsedBody.adminPassword;
       if (reqPass !== ADMIN_PASSWORD) {
         return res.status(401).json({ error: 'Unauthorized. Valid Admin Password required.' });
       }

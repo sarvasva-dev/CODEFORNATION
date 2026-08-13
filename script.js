@@ -504,6 +504,19 @@ if (repoForm) {
     if (map) renderRepoRosterUI();
   });
   initWebSocket(() => renderRepoRosterUI());
+
+  setInterval(async () => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      const updatedMap = await fetchServerScores();
+      if (updatedMap) renderRepoRosterUI();
+    }
+  }, 4000);
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY || e.key === STORAGE_KEY + '_repos' || e.key === STORAGE_KEY + '_lives' || e.key === STORAGE_KEY + '_ppts') {
+      renderRepoRosterUI();
+    }
+  });
 }
 
 // =========================================================
@@ -617,7 +630,7 @@ if (scoreForm) {
   }
 
   function populateDropdown() {
-    teamSelect.innerHTML = '<option value="" disabled selected>-- Select Hardcoded Team --</option>';
+    teamSelect.innerHTML = '<option value="" disabled selected>-- Select Official Team --</option>';
     HARDCODED_TEAMS.forEach(team => {
       const opt = document.createElement('option');
       opt.value = team.id;
@@ -762,6 +775,19 @@ if (scoreForm) {
 
   checkAdminAuth();
   initWebSocket(() => renderEntriesUI());
+
+  setInterval(async () => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      const updatedMap = await fetchServerScores();
+      if (updatedMap) renderEntriesUI();
+    }
+  }, 4000);
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY || e.key === STORAGE_KEY + '_repos' || e.key === STORAGE_KEY + '_lives' || e.key === STORAGE_KEY + '_ppts') {
+      renderEntriesUI();
+    }
+  });
 }
 
 // =========================================================
