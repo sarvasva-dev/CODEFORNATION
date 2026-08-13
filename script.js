@@ -128,10 +128,9 @@ function getTeams() {
   }));
 }
 
-// WebSocket Live Client Connection (Disabled on Vercel Serverless to prevent wss errors)
+// WebSocket Live Client Connection (Disabled on HTTPS / Vercel Serverless to prevent wss errors)
 function initWebSocket(onScoresUpdate) {
-  if (window.location.hostname.includes('vercel.app')) {
-    console.log('⚡ [Vercel Deployment] Serverless active - using fast Supabase live polling.');
+  if (window.location.protocol === 'https:' || window.location.hostname.includes('vercel') || window.location.hostname.includes('now.sh')) {
     return;
   }
 
@@ -143,7 +142,6 @@ function initWebSocket(onScoresUpdate) {
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
-      console.log('⚡ [WebSocket Client] Realtime connection established.');
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
 
@@ -174,12 +172,9 @@ function initWebSocket(onScoresUpdate) {
       } catch (err) {}
     };
 
-    socket.onclose = () => {
-      reconnectTimer = setTimeout(() => initWebSocket(onScoresUpdate), 5000);
-    };
-
-    socket.onerror = (err) => {};
-  } catch (e) {}
+    socket.onclose = () => { socket = null; };
+    socket.onerror = () => { socket = null; };
+  } catch (e) { socket = null; }
 }
 
 // Update single team score locally and sync to Supabase API
@@ -354,8 +349,8 @@ if (repoForm) {
         </td>
         <td>
           ${hasPpt 
-            ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT Presentation ↗</a>`
-            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No PPT link</span>'}
+            ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 Open PPT ↗</a>`
+            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No PPT</span>'}
         </td>
       `;
       repoRosterBody.appendChild(tr);
@@ -400,23 +395,24 @@ if (repoForm) {
       return;
     }
 
-    // Check if user uploaded a PPT file directly
+    // Handle PPT File Upload (Stores directly for free in Supabase Cloud Storage)
     if (pptFileInput && pptFileInput.files && pptFileInput.files[0]) {
       const file = pptFileInput.files[0];
-      if (file.size > 52428800) { // 50MB limit
+      if (file.size > 52428800) {
         showSubmitStatus('Uploaded PPT file size exceeds 50MB limit.', 'error');
         return;
       }
 
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.textContent = '⏳ Uploading PPT Presentation File to Free Cloud Storage...';
+        submitBtn.textContent = '⏳ Uploading PPT File...';
       }
 
       try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${teamId}_${Date.now()}.${fileExt}`;
+
         if (supabaseClient) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${teamId}_${Date.now()}.${fileExt}`;
           const { data: uploadData, error: uploadErr } = await supabaseClient.storage
             .from('ppts')
             .upload(fileName, file, { upsert: true });
@@ -425,10 +421,23 @@ if (repoForm) {
             const { data: publicUrlData } = supabaseClient.storage.from('ppts').getPublicUrl(fileName);
             if (publicUrlData && publicUrlData.publicUrl) {
               pptUrl = publicUrlData.publicUrl;
-              console.log('✅ Uploaded PPT File to Supabase Free Storage:', pptUrl);
             }
-          } else {
-            console.warn('Supabase storage upload notice:', uploadErr?.message);
+          }
+        }
+
+        // Direct REST upload fallback if SDK not loaded
+        if (!pptUrl) {
+          const restUrl = `${SUPABASE_URL}/storage/v1/object/ppts/${fileName}`;
+          const resUpload = await fetch(restUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'x-upsert': 'true'
+            },
+            body: file
+          });
+          if (resUpload.ok) {
+            pptUrl = `${SUPABASE_URL}/storage/v1/object/public/ppts/${fileName}`;
           }
         }
       } catch (fErr) {
@@ -464,7 +473,7 @@ if (repoForm) {
       const data = await res.json();
       if (res.ok && data.success) {
         const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
-        showSubmitStatus(`🎉 Project Links & Presentation for "${teamName}" submitted successfully!`, 'success');
+        showSubmitStatus(`🎉 Project Details & Presentation for "${teamName}" submitted successfully!`, 'success');
         repoUrlInput.value = '';
         if (liveUrlInput) liveUrlInput.value = '';
         if (pptUrlInput) pptUrlInput.value = '';
@@ -475,7 +484,7 @@ if (repoForm) {
         showSubmitStatus(data.error || 'Failed to submit details. Please try again.', 'error');
       }
     } catch (err) {
-      showSubmitStatus('Submitted locally! Will sync when server is online.', 'success');
+      showSubmitStatus('Submitted locally! Will sync when connection restores.', 'success');
       renderRepoRosterUI();
     }
   });
@@ -632,7 +641,7 @@ if (scoreForm) {
             <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
               ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
               ${team.live_url ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
-              ${team.ppt_url ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT ↗</a>` : ''}
+              ${team.ppt_url ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 Open PPT ↗</a>` : ''}
             </div>
           </div>
         </td>
@@ -807,7 +816,7 @@ if (leaderboardBody) {
             <div style="margin-top: 10px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
               ${item.data.repo_url ? `<a href="${escapeHtml(item.data.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
               ${item.data.live_url ? `<a href="${escapeHtml(item.data.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
-              ${item.data.ppt_url ? `<a href="${escapeHtml(item.data.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT ↗</a>` : ''}
+              ${item.data.ppt_url ? `<a href="${escapeHtml(item.data.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 Open PPT ↗</a>` : ''}
             </div>
           `;
           podium.appendChild(div);
@@ -831,7 +840,7 @@ if (leaderboardBody) {
             <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
               ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
               ${team.live_url ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
-              ${team.ppt_url ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 PPT ↗</a>` : ''}
+              ${team.ppt_url ? `<a href="${escapeHtml(team.ppt_url)}" target="_blank" rel="noopener noreferrer" class="ppt-link-btn">📊 Open PPT ↗</a>` : ''}
             </div>
           </div>
         </td>
