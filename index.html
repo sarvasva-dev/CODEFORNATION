@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code for the Nation | Add Team Score</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="tricolor-bar"></div>
+
+  <header class="topbar">
+    <div class="logo-block">
+      <div class="chakra">☬</div>
+      <div>
+        <h1>Code for the Nation</h1>
+        <p class="subtitle">Hackathon Leaderboard Control Panel</p>
+      </div>
+    </div>
+    <a href="leaderboard.html" class="nav-btn">View Leaderboard →</a>
+  </header>
+
+  <main class="container">
+    <section class="card form-card">
+      <h2>Add Team Score</h2>
+      <form id="scoreForm">
+        <label for="teamName">Team Name</label>
+        <input type="text" id="teamName" placeholder="e.g. Digital Bharat" required maxlength="40">
+
+        <label for="teamScore">Score</label>
+        <input type="number" id="teamScore" placeholder="e.g. 85" required min="0" max="1000" step="0.1">
+
+        <div class="btn-row">
+          <button type="submit" class="btn primary">Add / Update Team</button>
+          <button type="button" id="clearAllBtn" class="btn danger">Clear All Data</button>
+        </div>
+      </form>
+      <p id="statusMsg" class="status-msg"></p>
+    </section>
+
+    <section class="card list-card">
+      <h2>Current Entries (<span id="entryCount">0</span>)</h2>
+      <div class="table-wrap">
+        <table id="entriesTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team Name</th>
+              <th>Score</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="entriesBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Data stored locally in this browser (localStorage) · VSICS Hackathon 2026
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

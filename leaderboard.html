@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code for the Nation | Live Leaderboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="leaderboard-body">
+
+  <div class="tricolor-bar"></div>
+
+  <header class="topbar">
+    <div class="logo-block">
+      <div class="chakra">☬</div>
+      <div>
+        <h1>Code for the Nation</h1>
+        <p class="subtitle">Live Hackathon Leaderboard</p>
+      </div>
+    </div>
+    <a href="index.html" class="nav-btn">+ Add / Edit Scores</a>
+  </header>
+
+  <main class="container">
+    <section class="podium" id="podium"></section>
+
+    <section class="card">
+      <div class="lb-head">
+        <h2>Full Rankings</h2>
+        <span class="live-dot">● Live</span>
+      </div>
+      <div class="table-wrap">
+        <table id="leaderboardTable">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Team Name</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+      </div>
+      <p id="emptyMsg" class="empty-msg" style="display:none;">No teams added yet. Go to the Add Scores page to get started 🇮🇳</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Auto-refreshes every 2 seconds · VSICS Hackathon 2026 · Jai Hind 🇮🇳
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
