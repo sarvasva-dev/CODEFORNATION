@@ -20,8 +20,8 @@
   --text-main: #0F172A;
   --text-muted: #64748B;
   --bg-gradient: linear-gradient(180deg, #F8FAFC 0%, #EDF2F7 100%);
-  --card-shadow: 0 12px 30px -5px rgba(12, 30, 56, 0.08), 0 4px 12px -2px rgba(12, 30, 56, 0.04);
-  --glass-card: rgba(255, 255, 255, 0.95);
+  --card-shadow: 0 14px 35px -5px rgba(12, 30, 56, 0.1), 0 4px 14px -2px rgba(12, 30, 56, 0.04);
+  --glass-card: rgba(255, 255, 255, 0.96);
   --border-color: #E2E8F0;
 }
 
@@ -38,6 +38,33 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* Keyframe Animations */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 16px var(--saffron-glow); }
+  50% { box-shadow: 0 0 28px rgba(255, 153, 51, 0.7); }
+}
+
+@keyframes floatPodium {
+  0%, 100% { transform: translateY(-18px); }
+  50% { transform: translateY(-26px); }
+}
+
+@keyframes floatItem {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 /* Tricolor Banner Top Strip */
@@ -45,14 +72,14 @@ body {
   height: 7px;
   width: 100%;
   background: linear-gradient(90deg, #FF7700 0% 33.3%, #FFFFFF 33.3% 66.6%, #138808 66.6% 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Top Header Bar */
 .topbar {
   background: var(--navy);
   color: #fff;
-  padding: 16px 36px;
+  padding: 18px 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -64,17 +91,6 @@ body {
   overflow: hidden;
 }
 
-.topbar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 300px;
-  height: 100%;
-  background: radial-gradient(circle at 100% 0%, rgba(255, 119, 0, 0.15), transparent 70%);
-  pointer-events: none;
-}
-
 .logo-block {
   display: flex;
   align-items: center;
@@ -82,20 +98,19 @@ body {
 }
 
 .vsics-badge {
-  width: 52px;
-  height: 52px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background: #ffffff;
   border: 3px solid var(--saffron);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px var(--saffron-glow);
+  animation: pulseGlow 3s infinite ease-in-out;
   font-family: 'Cinzel', serif;
   font-weight: 800;
   font-size: 16px;
   color: var(--navy);
-  letter-spacing: -0.5px;
   position: relative;
 }
 
@@ -109,7 +124,7 @@ body {
 
 .brand-info h1 {
   font-family: 'Outfit', sans-serif;
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 900;
   letter-spacing: -0.3px;
   background: linear-gradient(90deg, #FFFFFF 0%, #F1F5F9 60%, var(--saffron-bright) 100%);
@@ -119,7 +134,7 @@ body {
 
 .brand-info .institution {
   font-family: 'Cinzel', serif;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 700;
   color: var(--saffron-bright);
   letter-spacing: 1px;
@@ -127,7 +142,7 @@ body {
 }
 
 .brand-info .subtitle {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: #94A3B8;
   font-weight: 500;
 }
@@ -142,9 +157,9 @@ body {
 .nav-btn {
   background: linear-gradient(135deg, var(--saffron) 0%, #E66700 100%);
   color: #FFFFFF;
-  font-weight: 700;
-  font-size: 0.88rem;
-  padding: 10px 20px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 11px 22px;
   border-radius: 10px;
   text-decoration: none;
   transition: all 0.25s ease;
@@ -158,16 +173,15 @@ body {
 .nav-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(255, 119, 0, 0.5);
-  background: linear-gradient(135deg, #FF881A 0%, var(--saffron) 100%);
 }
 
 .export-btn {
   background: linear-gradient(135deg, #10B981 0%, #059669 100%);
   color: #FFFFFF;
   border: none;
-  font-weight: 700;
-  font-size: 0.88rem;
-  padding: 10px 20px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 11px 22px;
   border-radius: 10px;
   cursor: pointer;
   display: inline-flex;
@@ -183,19 +197,42 @@ body {
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
 }
 
+/* Event Hero Image Banner */
+.hero-banner-wrap {
+  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(12, 30, 56, 0.15);
+  margin-bottom: 24px;
+  border: 1px solid var(--border-color);
+  animation: slideInUp 0.6s ease-out;
+}
+
+.hero-banner-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.hero-banner-wrap:hover .hero-banner-img {
+  transform: scale(1.02);
+}
+
 /* Event Banner Strip */
 .event-strip {
   background: linear-gradient(90deg, #09172A 0%, #122847 50%, #09172A 100%);
   color: #E2E8F0;
-  padding: 10px 24px;
+  padding: 12px 24px;
   text-align: center;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 700;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px;
+  gap: 24px;
   flex-wrap: wrap;
 }
 
@@ -204,6 +241,11 @@ body {
   align-items: center;
   gap: 6px;
   color: #F8FAFC;
+  transition: transform 0.2s;
+}
+
+.tag-item:hover {
+  transform: scale(1.05);
 }
 
 .tag-item span {
@@ -220,17 +262,23 @@ body {
   display: flex;
   flex-direction: column;
   gap: 26px;
+  animation: slideInUp 0.8s ease-out;
 }
 
 /* Card Styling */
 .card {
   background: var(--glass-card);
   backdrop-filter: blur(10px);
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 28px;
   box-shadow: var(--card-shadow);
   border: 1px solid var(--border-color);
   position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 18px 40px -5px rgba(12, 30, 56, 0.14);
 }
 
 .card-header {
@@ -244,15 +292,15 @@ body {
 
 .card h2 {
   color: var(--navy);
-  font-size: 1.25rem;
+  font-size: 1.3rem;
   font-weight: 800;
   border-left: 6px solid var(--saffron);
-  padding-left: 12px;
+  padding-left: 14px;
   line-height: 1.2;
 }
 
 .section-desc {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--text-muted);
   width: 100%;
   margin-top: 4px;
@@ -260,7 +308,7 @@ body {
 
 .badge {
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
   padding: 6px 14px;
   border-radius: 20px;
   letter-spacing: 0.3px;
@@ -285,7 +333,7 @@ body {
 
 .form-group label {
   display: block;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--navy);
   margin-bottom: 8px;
@@ -297,11 +345,11 @@ body {
   padding: 13px 16px;
   border: 1.5px solid var(--border-color);
   border-radius: 10px;
-  font-size: 0.95rem;
+  font-size: 0.98rem;
   font-family: inherit;
   background-color: #F8FAFC;
   color: var(--text-main);
-  transition: all 0.2s;
+  transition: all 0.25s;
 }
 
 .form-group select:focus,
@@ -442,6 +490,7 @@ tbody tr:hover { background: #F8FAFC; }
 .quick-btn.plus-btn:hover {
   background: #2563EB;
   color: #FFFFFF;
+  transform: translateY(-1px);
 }
 
 .quick-btn.minus-btn {
@@ -452,6 +501,7 @@ tbody tr:hover { background: #F8FAFC; }
 .quick-btn.minus-btn:hover {
   background: #DC2626;
   color: #FFFFFF;
+  transform: translateY(-1px);
 }
 
 .btn-save {
@@ -474,10 +524,10 @@ tbody tr:hover { background: #F8FAFC; }
 
 .podium-title {
   font-family: 'Cinzel', serif;
-  font-size: 1.3rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: var(--navy);
-  margin-bottom: 20px;
+  margin-bottom: 22px;
   letter-spacing: 1px;
 }
 
@@ -493,25 +543,27 @@ tbody tr:hover { background: #F8FAFC; }
 .podium-item {
   background: #FFFFFF;
   border-radius: 20px;
-  padding: 24px 28px;
+  padding: 26px 28px;
   text-align: center;
   box-shadow: 0 16px 36px -8px rgba(12, 30, 56, 0.12);
   min-width: 180px;
   flex: 1;
   max-width: 240px;
   position: relative;
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-.podium-item:hover { transform: translateY(-6px); }
+.podium-item:hover {
+  transform: translateY(-8px);
+}
 
 /* 1st Place Gold */
 .podium-item.rank-1 {
   order: 2;
-  transform: translateY(-18px);
   border: 2px solid #F59E0B;
   background: linear-gradient(180deg, #FFFFFF 0%, #FEF3C7 100%);
-  box-shadow: 0 20px 40px -10px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 22px 45px -10px rgba(245, 158, 11, 0.35);
+  animation: floatPodium 4s infinite ease-in-out;
 }
 .podium-item.rank-1 .podium-badge {
   background: var(--gold-gradient);
@@ -524,6 +576,7 @@ tbody tr:hover { background: #F8FAFC; }
   order: 1;
   border: 2px solid #94A3B8;
   background: linear-gradient(180deg, #FFFFFF 0%, #F1F5F9 100%);
+  animation: floatItem 4s infinite ease-in-out;
 }
 .podium-item.rank-2 .podium-badge {
   background: var(--silver-gradient);
@@ -535,6 +588,7 @@ tbody tr:hover { background: #F8FAFC; }
   order: 3;
   border: 2px solid #E07A5F;
   background: linear-gradient(180deg, #FFFFFF 0%, #FFEDD5 100%);
+  animation: floatItem 4s infinite ease-in-out 0.5s;
 }
 .podium-item.rank-3 .podium-badge {
   background: var(--bronze-gradient);
@@ -555,6 +609,11 @@ tbody tr:hover { background: #F8FAFC; }
   font-size: 2.8rem;
   line-height: 1;
   margin: 6px 0;
+  transition: transform 0.3s;
+}
+
+.podium-item:hover .podium-medal {
+  transform: scale(1.15) rotate(5deg);
 }
 
 .podium-name {
@@ -602,11 +661,11 @@ tbody tr:hover { background: #F8FAFC; }
 }
 
 .search-box input {
-  padding: 9px 16px;
+  padding: 10px 16px;
   border: 1.5px solid var(--border-color);
   border-radius: 10px;
   font-size: 0.9rem;
-  width: 230px;
+  width: 240px;
   font-family: inherit;
 }
 .search-box input:focus {
@@ -646,15 +705,16 @@ tbody tr:hover { background: #F8FAFC; }
 .poster-footer {
   background: var(--navy);
   color: #FFFFFF;
-  padding: 20px;
+  padding: 22px;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   border-top: 3px solid var(--saffron);
+  margin-top: auto;
 }
 
 .poster-footer .slogan {
   font-weight: 900;
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: var(--saffron-bright);
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -668,8 +728,8 @@ tbody tr:hover { background: #F8FAFC; }
   .topbar { padding: 14px 18px; }
   .card { padding: 20px; }
   .btn-row { flex-direction: column; }
-  .podium-item.rank-1 { transform: none; order: 1; }
-  .podium-item.rank-2 { order: 2; }
-  .podium-item.rank-3 { order: 3; }
+  .podium-item.rank-1 { transform: none; animation: none; order: 1; }
+  .podium-item.rank-2 { order: 2; animation: none; }
+  .podium-item.rank-3 { order: 3; animation: none; }
   .search-box input { width: 100%; }
 }
