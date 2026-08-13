@@ -1199,26 +1199,46 @@ tbody tr:hover { background: #F8FAFC; }
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: 12px;
+    width: 100%;
   }
 
   table {
-    min-width: 600px;
+    min-width: 100% !important;
+    width: 100% !important;
   }
 
   th, td {
-    padding: 10px 12px;
-    font-size: 0.85rem;
+    padding: 8px 6px !important;
+    font-size: 0.82rem !important;
+  }
+
+  .team-name-cell {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+
+  .table-score-input {
+    width: 58px !important;
+    padding: 6px 4px !important;
+    font-size: 0.88rem !important;
   }
 
   .quick-btns {
+    display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 3px !important;
   }
 
   .quick-btn, .btn-save {
-    padding: 6px 10px;
-    font-size: 0.78rem;
-    min-height: 36px;
+    padding: 4px 6px !important;
+    font-size: 0.72rem !important;
+    min-height: 28px !important;
+  }
+
+  .repo-link-btn, .live-link-btn, .ppt-link-btn {
+    padding: 4px 8px !important;
+    font-size: 0.72rem !important;
   }
 
   .login-card {
