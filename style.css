@@ -899,3 +899,133 @@ tbody tr:hover { background: #F8FAFC; }
   color: #FFFFFF;
 }
 
+/* Secondary Nav Button */
+.secondary-nav-btn {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: none !important;
+}
+
+.secondary-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* WhatsApp Share Button */
+.whatsapp-btn {
+  background: #25D366;
+  color: #FFFFFF;
+  border: none;
+  font-weight: 800;
+  font-size: 0.92rem;
+  padding: 12px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.whatsapp-btn:hover {
+  background: #1DA851;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 211, 102, 0.6);
+}
+
+/* Repo Submission Hero Card */
+.repo-hero-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, #0C1E38 0%, #122847 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 119, 0, 0.3);
+}
+
+.repo-hero-content {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 1;
+}
+
+.github-icon-large {
+  font-size: 2.8rem;
+  background: rgba(255, 255, 255, 0.1);
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.repo-hero-card h2 {
+  color: #FFFFFF;
+  font-size: 1.4rem;
+  margin-bottom: 4px;
+  border: none;
+  padding: 0;
+}
+
+.repo-hero-card p {
+  color: #94A3B8;
+  font-size: 0.9rem;
+}
+
+/* Repo Badges & Links */
+.repo-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0F172A;
+  color: #F8FAFC;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid #334155;
+  transition: all 0.2s ease;
+}
+
+.repo-link-btn:hover {
+  background: #2563EB;
+  border-color: #3B82F6;
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-tag.submitted {
+  background: #D1FAE5;
+  color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+
+.status-tag.pending {
+  background: #F3F4F6;
+  color: #6B7280;
+  border: 1px solid #E5E7EB;
+}
+
+.req {
+  color: #EF4444;
+}
+
+

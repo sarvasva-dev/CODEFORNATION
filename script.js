@@ -1,4 +1,4 @@
-// ===== VSICS Hackathon Leaderboard Engine (Supabase + WebSockets Real-Time Sync) =====
+// ===== VSICS Hackathon Leaderboard Engine (Supabase + WebSockets + GitHub Repo Submissions) =====
 const STORAGE_KEY = 'vsics_hackathon_leaderboard_v2';
 const API_BASE = '/api/scores';
 const ADMIN_PASSWORD = '##HELLOCODEFORNATION';
@@ -55,12 +55,32 @@ function saveScoreMap(map) {
   }
 }
 
-// Get array of teams merged with current LocalStorage scores
+// Read repo map from LocalStorage
+function getRepoMap() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY + '_repos');
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+// Write repo map to LocalStorage
+function saveRepoMap(map) {
+  try {
+    localStorage.setItem(STORAGE_KEY + '_repos', JSON.stringify(map));
+  } catch (e) {}
+}
+
+// Get array of teams merged with current LocalStorage scores and repos
 function getTeams() {
   const map = getScoreMap();
+  const repoMap = getRepoMap();
   return HARDCODED_TEAMS.map(team => ({
     ...team,
-    score: map[team.id] !== undefined ? Math.max(0, parseFloat(map[team.id]) || 0) : 0
+    score: map[team.id] !== undefined ? Math.max(0, parseFloat(map[team.id]) || 0) : 0,
+    repo_url: repoMap[team.id] || ''
   }));
 }
 
@@ -83,14 +103,17 @@ function initWebSocket(onScoresUpdate) {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'SCORES_UPDATED' && Array.isArray(message.scores)) {
-          console.log('📡 [WebSocket Broadcast] Instant score update received!');
+          console.log('📡 [WebSocket Broadcast] Instant score/repo update received!');
           const map = getScoreMap();
+          const repoMap = getRepoMap();
           message.scores.forEach(item => {
-            if (item.id && item.score !== undefined) {
-              map[item.id] = Number(item.score) || 0;
+            if (item.id) {
+              if (item.score !== undefined) map[item.id] = Number(item.score) || 0;
+              if (item.repo_url !== undefined) repoMap[item.id] = item.repo_url || '';
             }
           });
           saveScoreMap(map);
+          saveRepoMap(repoMap);
           if (typeof onScoresUpdate === 'function') {
             onScoresUpdate();
           }
@@ -153,7 +176,7 @@ async function resetAllScores() {
   }
 }
 
-// Sync scores from Supabase API to LocalStorage
+// Sync scores & repo URLs from Supabase API to LocalStorage
 async function fetchServerScores() {
   try {
     const res = await fetch(API_BASE);
@@ -162,11 +185,16 @@ async function fetchServerScores() {
 
     if (Array.isArray(data)) {
       const map = getScoreMap();
+      const repoMap = getRepoMap();
       let updated = false;
       data.forEach(item => {
-        if (item.id && item.score !== undefined) {
-          if (map[item.id] !== item.score) {
+        if (item.id) {
+          if (item.score !== undefined && map[item.id] !== item.score) {
             map[item.id] = Number(item.score) || 0;
+            updated = true;
+          }
+          if (item.repo_url !== undefined && repoMap[item.id] !== item.repo_url) {
+            repoMap[item.id] = item.repo_url || '';
             updated = true;
           }
         }
@@ -174,6 +202,7 @@ async function fetchServerScores() {
 
       if (updated) {
         saveScoreMap(map);
+        saveRepoMap(repoMap);
         console.log('🔄 [Supabase API] Local state updated from server.');
       }
       return map;
@@ -199,11 +228,12 @@ function escapeHtml(str) {
 function exportLeaderboardCSV() {
   console.log('📥 [CSV Export] Generating CSV file...');
   const teams = getSortedTeams().filter(t => t.score > 0);
-  let csvContent = 'Rank,Team Name,Score\n';
+  let csvContent = 'Rank,Team Name,Score,GitHub Repository\n';
   
   teams.forEach((t, i) => {
     const cleanName = `"${t.name.replace(/"/g, '""')}"`;
-    csvContent += `${i + 1},${cleanName},${t.score}\n`;
+    const cleanRepo = `"${(t.repo_url || '').replace(/"/g, '""')}"`;
+    csvContent += `${i + 1},${cleanName},${t.score},${cleanRepo}\n`;
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -216,6 +246,129 @@ function exportLeaderboardCSV() {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
   console.log('✅ [CSV Export] Download started.');
+}
+
+// =========================================================
+// ============  SUBMIT REPO PAGE LOGIC  ===================
+// =========================================================
+const repoForm = document.getElementById('repoForm');
+
+if (repoForm) {
+  console.log('📁 [Submission Portal] GitHub Repo Submission page loaded.');
+  const submitTeamSelect = document.getElementById('submitTeamSelect');
+  const repoUrlInput = document.getElementById('repoUrlInput');
+  const submitStatusMsg = document.getElementById('submitStatusMsg');
+  const repoRosterBody = document.getElementById('repoRosterBody');
+  const submittedCount = document.getElementById('submittedCount');
+  const whatsappShareBtn = document.getElementById('whatsappShareBtn');
+
+  function populateSubmitDropdown() {
+    submitTeamSelect.innerHTML = '<option value="" disabled selected>-- Select Your Official Team --</option>';
+    HARDCODED_TEAMS.forEach(team => {
+      const opt = document.createElement('option');
+      opt.value = team.id;
+      opt.textContent = team.name;
+      submitTeamSelect.appendChild(opt);
+    });
+  }
+
+  function renderRepoRosterUI() {
+    const teams = getTeams();
+    let countSubmitted = 0;
+    repoRosterBody.innerHTML = '';
+
+    teams.forEach((team, index) => {
+      const isSubmitted = Boolean(team.repo_url && team.repo_url.trim());
+      if (isSubmitted) countSubmitted++;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>#${index + 1}</strong></td>
+        <td><span class="team-badge">${escapeHtml(team.name)}</span></td>
+        <td>
+          ${isSubmitted 
+            ? '<span class="status-tag submitted">✅ Submitted</span>' 
+            : '<span class="status-tag pending">⏳ Pending</span>'}
+        </td>
+        <td>
+          ${isSubmitted 
+            ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 ${escapeHtml(team.repo_url)} ↗</a>`
+            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No repository submitted yet</span>'}
+        </td>
+      `;
+      repoRosterBody.appendChild(tr);
+    });
+
+    if (submittedCount) submittedCount.textContent = countSubmitted;
+  }
+
+  function showSubmitStatus(message, type) {
+    submitStatusMsg.textContent = message;
+    submitStatusMsg.className = 'status-msg ' + type;
+    setTimeout(() => {
+      submitStatusMsg.textContent = '';
+      submitStatusMsg.className = 'status-msg';
+    }, 4000);
+  }
+
+  repoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const teamId = submitTeamSelect.value;
+    const repoUrl = repoUrlInput.value.trim();
+
+    if (!teamId) {
+      showSubmitStatus('Please select your official team from the list.', 'error');
+      return;
+    }
+
+    if (!repoUrl || (!repoUrl.startsWith('http://') && !repoUrl.startsWith('https://'))) {
+      showSubmitStatus('Please enter a valid GitHub repository URL (e.g. https://github.com/user/repo).', 'error');
+      return;
+    }
+
+    // Update locally immediately
+    const repoMap = getRepoMap();
+    repoMap[teamId] = repoUrl;
+    saveRepoMap(repoMap);
+
+    try {
+      const res = await fetch('/api/submit-repo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, repoUrl })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
+        showSubmitStatus(`🎉 GitHub Repository link for "${teamName}" submitted successfully!`, 'success');
+        repoUrlInput.value = '';
+        submitTeamSelect.value = '';
+        renderRepoRosterUI();
+      } else {
+        showSubmitStatus(data.error || 'Failed to submit repository URL. Please try again.', 'error');
+      }
+    } catch (err) {
+      showSubmitStatus('Submitted locally! Will sync when connection restores.', 'success');
+      renderRepoRosterUI();
+    }
+  });
+
+  if (whatsappShareBtn) {
+    whatsappShareBtn.addEventListener('click', () => {
+      const shareUrl = window.location.href;
+      const shareText = `🚩 *CODE FOR THE NATION 2026*\n\nAttention Team Leaders: Please select your team and submit your official GitHub Project Repository link here:\n\n🔗 ${shareUrl}`;
+      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+      window.open(waUrl, '_blank');
+    });
+  }
+
+  populateSubmitDropdown();
+  renderRepoRosterUI();
+  fetchServerScores().then(map => {
+    if (map) renderRepoRosterUI();
+  });
+  initWebSocket(() => renderRepoRosterUI());
 }
 
 // =========================================================
@@ -327,7 +480,12 @@ if (scoreForm) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>#${index + 1}</strong></td>
-        <td><span class="team-badge">${escapeHtml(team.name)}</span></td>
+        <td>
+          <div class="team-name-cell" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <span class="team-badge">${escapeHtml(team.name)}</span>
+            ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
+          </div>
+        </td>
         <td>
           <div class="score-input-wrap">
             <input type="number" class="table-score-input" data-id="${team.id}" value="${team.score}" min="0" max="10000" step="1">
@@ -498,6 +656,7 @@ if (leaderboardBody) {
             <div class="podium-medal">${medals[item.rank - 1]}</div>
             <div class="podium-name">${escapeHtml(item.data.name)}</div>
             <div class="podium-score">${item.data.score} <span class="pts-unit">pts</span></div>
+            ${item.data.repo_url ? `<div style="margin-top: 8px;"><a href="${escapeHtml(item.data.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub Repo ↗</a></div>` : ''}
           `;
           podium.appendChild(div);
         }
@@ -515,8 +674,9 @@ if (leaderboardBody) {
           ${overallRank <= 3 ? medals[overallRank - 1] : ''} #${overallRank}
         </td>
         <td>
-          <div class="team-name-cell">
+          <div class="team-name-cell" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <strong>${escapeHtml(team.name)}</strong>
+            ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub Repo ↗</a>` : ''}
           </div>
         </td>
         <td>
@@ -556,7 +716,7 @@ if (leaderboardBody) {
 
   // Storage listener for instant cross-tab sync
   window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY) {
+    if (e.key === STORAGE_KEY || e.key === STORAGE_KEY + '_repos') {
       console.log('🔄 [Storage Event] Realtime sync from another tab.');
       renderLeaderboardUI();
     }

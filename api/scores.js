@@ -24,7 +24,11 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6Ik
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const fallbackStore = {};
-HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
+const repoFallback = {};
+HARDCODED_TEAMS.forEach(t => {
+  fallbackStore[t.id] = 0;
+  repoFallback[t.id] = '';
+});
 
 module.exports = async function handler(req, res) {
   // Enable CORS headers
@@ -42,17 +46,42 @@ module.exports = async function handler(req, res) {
   }
 
   const isResetAction = req.query?.action === 'reset' || req.url?.includes('/reset');
+  const isSubmitRepoAction = req.query?.action === 'submit-repo' || req.url?.includes('submit-repo');
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
 
-  // Check admin password for any mutation (POST)
-  if (req.method === 'POST') {
-    const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
-    if (reqPass !== ADMIN_PASSWORD) {
-      return res.status(401).json({ error: 'Unauthorized. Valid Admin Password required.' });
-    }
-  }
-
   try {
+    // Handle Team Leader Repo Submission (Public endpoint, no admin pass required)
+    if (req.method === 'POST' && isSubmitRepoAction) {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const { teamId, repoUrl } = body || {};
+
+      if (!teamId || !repoUrl) {
+        return res.status(400).json({ error: 'Team selection and GitHub Repository URL are required.' });
+      }
+
+      const cleanUrl = String(repoUrl).trim();
+      const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
+      const teamName = teamObj ? teamObj.name : teamId;
+
+      await supabase.from('teams').upsert({
+        id: teamId,
+        name: teamName,
+        repo_url: cleanUrl,
+        updated_at: new Date()
+      });
+
+      repoFallback[teamId] = cleanUrl;
+      return res.status(200).json({ success: true, teamId, repoUrl: cleanUrl });
+    }
+
+    // Check admin password for score mutation (POST)
+    if (req.method === 'POST') {
+      const reqPass = req.headers['x-admin-password'] || req.body?.adminPassword;
+      if (reqPass !== ADMIN_PASSWORD) {
+        return res.status(401).json({ error: 'Unauthorized. Valid Admin Password required.' });
+      }
+    }
+
     // Handle Reset All Scores
     if (req.method === 'POST' && isResetAction) {
       await supabase.from('teams').update({ score: 0, updated_at: new Date() }).neq('id', '');
@@ -84,18 +113,23 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, teamId, score: numScore });
     }
 
-    // Handle GET (Fetch all team scores)
+    // Handle GET (Fetch all team scores & repos)
     if (req.method === 'GET') {
-      const { data, error } = await supabase.from('teams').select('id, name, score');
+      const { data, error } = await supabase.from('teams').select('id, name, score, repo_url');
       
       const scoreMap = {};
+      const repoMap = {};
       if (!error && data) {
-        data.forEach(d => { scoreMap[d.id] = Number(d.score) || 0; });
+        data.forEach(d => {
+          scoreMap[d.id] = Number(d.score) || 0;
+          if (d.repo_url) repoMap[d.id] = d.repo_url;
+        });
       }
 
       const result = HARDCODED_TEAMS.map(team => ({
         ...team,
-        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (fallbackStore[team.id] || 0)
+        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (fallbackStore[team.id] || 0),
+        repo_url: repoMap[team.id] || repoFallback[team.id] || ''
       }));
       return res.status(200).json(result);
     }
@@ -104,24 +138,10 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error('Vercel Serverless Function Error:', err.message);
 
-    if (req.method === 'POST' && isResetAction) {
-      HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
-      return res.status(200).json({ success: true, message: 'All team scores reset to 0' });
-    }
-
-    if (req.method === 'POST') {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { teamId, score } = body || {};
-      if (teamId && !isNaN(score)) {
-        const numScore = Math.max(0, parseFloat(score));
-        fallbackStore[teamId] = numScore;
-        return res.status(200).json({ success: true, teamId, score: numScore });
-      }
-    }
-
     const result = HARDCODED_TEAMS.map(team => ({
       ...team,
-      score: fallbackStore[team.id] !== undefined ? fallbackStore[team.id] : 0
+      score: fallbackStore[team.id] !== undefined ? fallbackStore[team.id] : 0,
+      repo_url: repoFallback[team.id] || ''
     }));
     return res.status(200).json(result);
   }

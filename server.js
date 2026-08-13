@@ -44,7 +44,7 @@ const wss = new WebSocketServer({ server });
 wss.on('connection', async (ws) => {
   console.log('⚡ [WebSocket] Client connected to live leaderboard stream.');
   
-  // Send current scores immediately upon connection
+  // Send current scores & repos immediately upon connection
   const scores = await fetchAllScores();
   ws.send(JSON.stringify({ type: 'SCORES_UPDATED', scores }));
 
@@ -67,18 +67,27 @@ function broadcastScores(scores) {
 
 // Memory fallback store if DB is offline or table not created yet
 const memoryStore = {};
-HARDCODED_TEAMS.forEach(t => memoryStore[t.id] = 0);
+const repoStore = {};
+HARDCODED_TEAMS.forEach(t => {
+  memoryStore[t.id] = 0;
+  repoStore[t.id] = '';
+});
 
 async function fetchAllScores() {
   try {
-    const { data, error } = await supabase.from('teams').select('id, name, score');
+    const { data, error } = await supabase.from('teams').select('id, name, score, repo_url');
     if (!error && data) {
       const scoreMap = {};
-      data.forEach(d => { scoreMap[d.id] = Number(d.score) || 0; });
+      const repoMap = {};
+      data.forEach(d => {
+        scoreMap[d.id] = Number(d.score) || 0;
+        if (d.repo_url) repoMap[d.id] = d.repo_url;
+      });
 
       return HARDCODED_TEAMS.map(team => ({
         ...team,
-        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (memoryStore[team.id] || 0)
+        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (memoryStore[team.id] || 0),
+        repo_url: repoMap[team.id] || repoStore[team.id] || ''
       }));
     }
   } catch (e) {
@@ -87,7 +96,8 @@ async function fetchAllScores() {
 
   return HARDCODED_TEAMS.map(team => ({
     ...team,
-    score: memoryStore[team.id] || 0
+    score: memoryStore[team.id] || 0,
+    repo_url: repoStore[team.id] || ''
   }));
 }
 
@@ -125,6 +135,40 @@ async function initDB() {
 app.get('/api/scores', async (req, res) => {
   const scores = await fetchAllScores();
   res.json(scores);
+});
+
+// Endpoint for Team Leaders to submit GitHub Repository Link (No admin pass required)
+app.post('/api/submit-repo', async (req, res) => {
+  const { teamId, repoUrl } = req.body || {};
+  if (!teamId || !repoUrl) {
+    return res.status(400).json({ error: "Team selection and GitHub Repository URL are required." });
+  }
+
+  const cleanUrl = String(repoUrl).trim();
+  const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
+  const teamName = teamObj ? teamObj.name : teamId;
+
+  try {
+    const { error } = await supabase
+      .from('teams')
+      .upsert({ id: teamId, name: teamName, repo_url: cleanUrl, updated_at: new Date() });
+
+    if (error) {
+      console.error("Error updating repo URL in Supabase:", error.message);
+    } else {
+      console.log(`✅ Submitted GitHub repo for ${teamName} (${teamId}): ${cleanUrl}`);
+    }
+  } catch (e) {
+    console.error("Supabase Repo Submission Error:", e.message);
+  }
+
+  repoStore[teamId] = cleanUrl;
+
+  // Broadcast updated scores & repo links via WebSockets
+  const updatedScores = await fetchAllScores();
+  broadcastScores(updatedScores);
+
+  res.json({ success: true, teamId, repoUrl: cleanUrl, message: `Repository URL submitted for ${teamName}!` });
 });
 
 app.post('/api/scores', async (req, res) => {

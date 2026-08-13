@@ -7,9 +7,13 @@ CREATE TABLE IF NOT EXISTS public.teams (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     score NUMERIC DEFAULT 0 NOT NULL,
+    repo_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure repo_url column exists if table was created previously
+ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS repo_url TEXT;
 
 -- 2. Create Index on score for fast Leaderboard sorting
 CREATE INDEX IF NOT EXISTS idx_teams_score ON public.teams (score DESC);

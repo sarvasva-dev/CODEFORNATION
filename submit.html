@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VSICS | Submit GitHub Repository - Code for the Nation 2026</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☬</text></svg>">
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body class="submit-body">
+
+  <!-- Indian Tricolor Header Bar -->
+  <div class="tricolor-bar"></div>
+
+  <!-- Top Bar with VSICS Branding -->
+  <header class="topbar">
+    <div class="logo-block">
+      <div class="vsics-badge">VSICS</div>
+      <div class="brand-info">
+        <p class="institution">Dr. Virendra Swarup Institute of Computer Studies</p>
+        <h1>CODE FOR THE NATION 2026</h1>
+        <p class="subtitle">Team Leader GitHub Repository Submission Portal</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a href="leaderboard.html" class="nav-btn">🏆 Live Leaderboard</a>
+      <a href="index.html" class="nav-btn secondary-nav-btn">⚙️ Admin Panel</a>
+    </div>
+  </header>
+
+  <!-- Event Banner Strip -->
+  <div class="event-strip">
+    <div class="tag-item">💡 <span>INNOVATE</span> Your Ideas</div>
+    <div class="tag-item">💻 <span>BUILD</span> With Code</div>
+    <div class="tag-item">🎨 <span>DESIGN</span> The Future</div>
+    <div class="tag-item">🚀 <span>SUBMIT</span> Your Repo</div>
+    <div class="tag-item">🇮🇳 <span>INSPIRE</span> The Nation</div>
+  </div>
+
+  <main class="container">
+    <!-- Hero Header Card -->
+    <div class="card repo-hero-card">
+      <div class="repo-hero-content">
+        <div class="github-icon-large">📁</div>
+        <div>
+          <h2>Submit Your Team's GitHub Repository</h2>
+          <p>Team Leaders: Please select your team name and paste your active GitHub project repository URL below.</p>
+        </div>
+      </div>
+      <button id="whatsappShareBtn" class="btn whatsapp-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+        Share Form on WhatsApp
+      </button>
+    </div>
+
+    <!-- Repository Submission Form Card -->
+    <section class="card form-card">
+      <div class="card-header">
+        <h2>Submit Project Details</h2>
+        <span class="badge lock-badge">📌 1 Submission Per Team</span>
+      </div>
+
+      <form id="repoForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="submitTeamSelect">Select Your Team <span class="req">*</span></label>
+            <select id="submitTeamSelect" required>
+              <option value="" disabled selected>-- Select Your Official Team --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="repoUrlInput">GitHub Repository URL <span class="req">*</span></label>
+            <input type="url" id="repoUrlInput" placeholder="https://github.com/username/repository" required>
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top: 24px;">
+          <button type="submit" class="btn primary-gradient login-submit-btn" style="flex:1;">
+            🚀 Submit Repository Link
+          </button>
+        </div>
+      </form>
+      <div id="submitStatusMsg" class="status-msg" style="margin-top: 18px;"></div>
+    </section>
+
+    <!-- Submitted Teams Roster Table Card -->
+    <section class="card list-card">
+      <div class="card-header">
+        <h2>Team Repositories Roster (<span id="submittedCount">0</span>/15 Submitted)</h2>
+        <p class="section-desc">Live status of GitHub repository links submitted by team leaders.</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 70px;">#</th>
+              <th>Team Name</th>
+              <th style="width: 140px;">Status</th>
+              <th>GitHub Repository Link</th>
+            </tr>
+          </thead>
+          <tbody id="repoRosterBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Official Poster Footer -->
+  <footer class="poster-footer">
+    <div class="slogan">"CODE TODAY, BUILD TOMORROW, EMPOWER THE NATION!"</div>
+    <div class="subtext">
+      VSICS Hackathon 2026 · Dr. Virendra Swarup Institute of Computer Studies · Jai Hind 🇮🇳
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
