@@ -1,8 +1,7 @@
-// ===== Shared Config & Hardcoded Roster =====
-const STORAGE_KEY = 'vsics_hackathon_leaderboard';
-const API_BASE = '/api/scores';
+// ===== VSICS Hackathon Leaderboard Engine (Pure LocalStorage) =====
+const STORAGE_KEY = 'vsics_hackathon_leaderboard_v2';
 
-console.log('🚀 [VSICS Leaderboard] Initializing script.js...');
+console.log('🚀 [VSICS Leaderboard] Initializing Pure LocalStorage Engine...');
 
 const HARDCODED_TEAMS = [
   { id: 'team-1', name: 'Built4Bharat' },
@@ -22,118 +21,56 @@ const HARDCODED_TEAMS = [
   { id: 'team-15', name: 'The Dominaters' }
 ];
 
-// Helper to load scores from localStorage
-function getLocalScores() {
+// Read score map from LocalStorage
+function getScoreMap() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     return JSON.parse(raw) || {};
   } catch (e) {
-    console.error('⚠️ [LocalStorage] Error parsing stored scores:', e);
+    console.error('⚠️ [LocalStorage] Error reading store:', e);
     return {};
   }
 }
 
-function saveLocalScore(teamId, score) {
-  const map = getLocalScores();
-  map[teamId] = Math.max(0, parseFloat(score) || 0);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  console.log(`💾 [LocalStorage] Saved team score: ${teamId} = ${map[teamId]}`);
+// Write score map to LocalStorage
+function saveScoreMap(map) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.error('⚠️ [LocalStorage] Error saving store:', e);
+  }
 }
 
-function saveLocalReset() {
+// Get array of teams merged with current LocalStorage scores
+function getTeams() {
+  const map = getScoreMap();
+  return HARDCODED_TEAMS.map(team => ({
+    ...team,
+    score: map[team.id] !== undefined ? Math.max(0, parseFloat(map[team.id]) || 0) : 0
+  }));
+}
+
+// Update single team score in LocalStorage
+function setTeamScore(teamId, newScore) {
+  const map = getScoreMap();
+  const validScore = Math.max(0, parseFloat(newScore) || 0);
+  map[teamId] = validScore;
+  saveScoreMap(map);
+  console.log(`💾 [LocalStorage] Updated "${teamId}" -> ${validScore} pts`);
+}
+
+// Reset all team scores to 0 in LocalStorage
+function resetAllScores() {
   const map = {};
   HARDCODED_TEAMS.forEach(t => map[t.id] = 0);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  console.log('🧹 [LocalStorage] Reset all team scores to 0');
+  saveScoreMap(map);
+  console.log('🧹 [LocalStorage] All team scores reset to 0.');
 }
 
-// In-memory state initialized immediately from localStorage
-let currentTeamsState = HARDCODED_TEAMS.map(team => {
-  const localMap = getLocalScores();
-  return {
-    ...team,
-    score: localMap[team.id] !== undefined ? Math.max(0, parseFloat(localMap[team.id]) || 0) : 0
-  };
-});
-
-console.log('📊 [State] Loaded initial teams state:', currentTeamsState);
-
-// Fetch scores from API and merge smartly without wiping local edits
-async function syncScoresWithAPI() {
-  console.log('🔄 [API Sync] Requesting latest scores from server...');
-  try {
-    const res = await fetch(API_BASE);
-    if (res.ok) {
-      const serverData = await res.json();
-      console.log('📥 [API Sync] Server response received:', serverData);
-      if (Array.isArray(serverData) && serverData.length > 0) {
-        const localMap = getLocalScores();
-        const updatedMap = {};
-
-        currentTeamsState = HARDCODED_TEAMS.map(team => {
-          const serverTeam = serverData.find(s => s.id === team.id);
-          const serverScore = serverTeam ? (parseFloat(serverTeam.score) || 0) : 0;
-          const localScore = localMap[team.id] !== undefined ? (parseFloat(localMap[team.id]) || 0) : 0;
-
-          // Smart merge: keep higher score between local & server unless reset
-          const finalScore = Math.max(serverScore, localScore);
-          updatedMap[team.id] = finalScore;
-          return { ...team, score: finalScore };
-        });
-
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMap));
-        console.log('✅ [API Sync] Scores synchronized successfully.');
-      }
-    } else {
-      console.warn(`⚠️ [API Sync] Server responded with status: ${res.status}`);
-    }
-  } catch (e) {
-    console.warn('⚡ [API Sync] Deferred to local storage fallback:', e.message);
-  }
-}
-
-async function updateTeamScore(teamId, newScore) {
-  const scoreVal = Math.max(0, parseFloat(newScore) || 0);
-  saveLocalScore(teamId, scoreVal);
-
-  // Update in-memory state instantly
-  const team = currentTeamsState.find(t => t.id === teamId);
-  if (team) {
-    team.score = scoreVal;
-    console.log(`🎯 [UI Action] Updated "${team.name}" (${teamId}) -> Score: ${scoreVal}`);
-  }
-
-  // Background API Push
-  try {
-    const res = await fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId, score: scoreVal })
-    });
-    if (res.ok) {
-      console.log(`🌐 [API Push] Successfully updated score on server for ${teamId}`);
-    }
-  } catch (e) {
-    console.warn('⚠️ [API Push] Deferred to local storage fallback:', e.message);
-  }
-}
-
-async function resetAllTeamScores() {
-  console.log('🚨 [Action] Resetting all team scores...');
-  saveLocalReset();
-  currentTeamsState.forEach(t => t.score = 0);
-
-  try {
-    await fetch(`${API_BASE}/reset`, { method: 'POST' });
-    console.log('🌐 [API Reset] Reset confirmed on server.');
-  } catch (e) {
-    console.warn('⚠️ [API Reset] Deferred to local storage fallback:', e.message);
-  }
-}
-
-function sortedTeams() {
-  return [...currentTeamsState].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+// Return teams sorted by score descending
+function getSortedTeams() {
+  return getTeams().sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }
 
 function escapeHtml(str) {
@@ -144,8 +81,8 @@ function escapeHtml(str) {
 
 // Export Leaderboard Data to CSV
 function exportLeaderboardCSV() {
-  console.log('📥 [CSV Export] Generating leaderboard CSV file...');
-  const teams = sortedTeams();
+  console.log('📥 [CSV Export] Generating CSV file...');
+  const teams = getSortedTeams();
   let csvContent = 'Rank,Team Name,Score\n';
   
   teams.forEach((t, i) => {
@@ -162,7 +99,7 @@ function exportLeaderboardCSV() {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-  console.log('✅ [CSV Export] File download initiated.');
+  console.log('✅ [CSV Export] Download started.');
 }
 
 // =========================================================
@@ -171,7 +108,7 @@ function exportLeaderboardCSV() {
 const scoreForm = document.getElementById('scoreForm');
 
 if (scoreForm) {
-  console.log('🛠️ [Page] Score Control Panel detected.');
+  console.log('🛠️ [Control Panel] Score Control Panel loaded.');
   const teamSelect = document.getElementById('teamSelect');
   const teamScoreInput = document.getElementById('teamScore');
   const statusMsg = document.getElementById('statusMsg');
@@ -190,11 +127,11 @@ if (scoreForm) {
   }
 
   function renderEntriesUI() {
-    console.log('🎨 [Render] Rendering Control Panel entries table...');
-    entryCount.textContent = currentTeamsState.length;
+    const teams = getTeams();
+    entryCount.textContent = teams.length;
     entriesBody.innerHTML = '';
 
-    currentTeamsState.forEach((team, index) => {
+    teams.forEach((team, index) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>#${index + 1}</strong></td>
@@ -229,14 +166,14 @@ if (scoreForm) {
 
   teamSelect.addEventListener('change', () => {
     const teamId = teamSelect.value;
-    const team = currentTeamsState.find(t => t.id === teamId);
+    const team = getTeams().find(t => t.id === teamId);
     if (team) {
       teamScoreInput.value = team.score;
       teamScoreInput.focus();
     }
   });
 
-  scoreForm.addEventListener('submit', async (e) => {
+  scoreForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const teamId = teamSelect.value;
     const score = parseFloat(teamScoreInput.value);
@@ -251,25 +188,25 @@ if (scoreForm) {
       return;
     }
 
-    await updateTeamScore(teamId, score);
+    setTeamScore(teamId, score);
     const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
-    showStatus(`Score for "${teamName}" updated to ${score}.`, 'success');
+    showStatus(`Score for "${teamName}" set to ${score}.`, 'success');
     renderEntriesUI();
   });
 
-  entriesBody.addEventListener('click', async (e) => {
+  entriesBody.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
     const teamId = btn.getAttribute('data-id');
     if (!teamId) return;
 
-    const team = currentTeamsState.find(t => t.id === teamId);
+    const team = getTeams().find(t => t.id === teamId);
     if (!team) return;
 
     if (btn.classList.contains('quick-btn')) {
       const delta = parseFloat(btn.getAttribute('data-delta')) || 0;
       const newScore = Math.max(0, team.score + delta);
-      await updateTeamScore(teamId, newScore);
+      setTeamScore(teamId, newScore);
       showStatus(`"${team.name}" score updated to ${newScore}`, 'success');
       renderEntriesUI();
       if (teamSelect.value === teamId) {
@@ -280,7 +217,7 @@ if (scoreForm) {
       const input = row.querySelector('.table-score-input');
       const newScore = parseFloat(input.value);
       if (!isNaN(newScore) && newScore >= 0) {
-        await updateTeamScore(teamId, newScore);
+        setTeamScore(teamId, newScore);
         showStatus(`"${team.name}" updated to ${newScore}.`, 'success');
         renderEntriesUI();
       } else {
@@ -289,13 +226,13 @@ if (scoreForm) {
     }
   });
 
-  entriesBody.addEventListener('keydown', async (e) => {
+  entriesBody.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.classList.contains('table-score-input')) {
       const teamId = e.target.getAttribute('data-id');
       const newScore = parseFloat(e.target.value);
-      const team = currentTeamsState.find(t => t.id === teamId);
+      const team = getTeams().find(t => t.id === teamId);
       if (team && !isNaN(newScore) && newScore >= 0) {
-        await updateTeamScore(teamId, newScore);
+        setTeamScore(teamId, newScore);
         showStatus(`"${team.name}" updated to ${newScore}.`, 'success');
         renderEntriesUI();
       }
@@ -303,9 +240,9 @@ if (scoreForm) {
   });
 
   if (resetAllBtn) {
-    resetAllBtn.addEventListener('click', async () => {
+    resetAllBtn.addEventListener('click', () => {
       if (confirm('Are you sure you want to reset ALL team scores to 0?')) {
-        await resetAllTeamScores();
+        resetAllScores();
         renderEntriesUI();
         teamScoreInput.value = '';
         teamSelect.value = '';
@@ -316,9 +253,6 @@ if (scoreForm) {
 
   populateDropdown();
   renderEntriesUI();
-
-  // Background API Sync
-  syncScoresWithAPI().then(renderEntriesUI);
 }
 
 // =========================================================
@@ -327,7 +261,7 @@ if (scoreForm) {
 const leaderboardBody = document.getElementById('leaderboardBody');
 
 if (leaderboardBody) {
-  console.log('🏆 [Page] Live Leaderboard page detected.');
+  console.log('🏆 [Leaderboard] Live Leaderboard loaded.');
   const podium = document.getElementById('podium');
   const emptyMsg = document.getElementById('emptyMsg');
   const exportBtn = document.getElementById('exportBtn');
@@ -337,8 +271,7 @@ if (leaderboardBody) {
   const rankClasses = ['gold', 'silver', 'bronze'];
 
   function renderLeaderboardUI() {
-    console.log('🏆 [Render] Rendering Live Leaderboard UI...');
-    const allTeams = sortedTeams();
+    const allTeams = getSortedTeams();
     const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const filteredTeams = query
       ? allTeams.filter(t => t.name.toLowerCase().includes(query))
@@ -408,24 +341,16 @@ if (leaderboardBody) {
     searchInput.addEventListener('input', renderLeaderboardUI);
   }
 
-  // Render instantly from local state
+  // Initial render
   renderLeaderboardUI();
 
-  // Background API Sync & Periodic Refresh
-  syncScoresWithAPI().then(renderLeaderboardUI);
-  setInterval(async () => {
-    await syncScoresWithAPI();
-    renderLeaderboardUI();
-  }, 3000);
+  // Polling update every 1.5 seconds for instant refresh
+  setInterval(renderLeaderboardUI, 1500);
 
-  // Storage listener for cross-tab sync
+  // Storage listener for instant cross-tab sync
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY) {
-      console.log('🔄 [Storage Event] Detected changes in another tab, updating UI...');
-      const localMap = getLocalScores();
-      currentTeamsState.forEach(t => {
-        if (localMap[t.id] !== undefined) t.score = parseFloat(localMap[t.id]) || 0;
-      });
+      console.log('🔄 [Storage Event] Realtime sync from another tab.');
       renderLeaderboardUI();
     }
   });
