@@ -4,7 +4,7 @@ const API_BASE = '/api/scores';
 const ADMIN_PASSWORD = '##HELLOCODEFORNATION';
 const ADMIN_AUTH_KEY = 'vsics_admin_authenticated';
 
-console.log('🚀 [VSICS Leaderboard] Initializing Supabase + WebSocket Engine...');
+console.log('🚀 [VSICS Leaderboard] Initializing Engine...');
 
 const HARDCODED_TEAMS = [
   { id: 'team-1', name: 'Built4Bharat' },
@@ -21,7 +21,8 @@ const HARDCODED_TEAMS = [
   { id: 'team-12', name: 'ByteNations' },
   { id: 'team-13', name: 'Mind Matrix' },
   { id: 'team-14', name: 'Flexbox Fanatics' },
-  { id: 'team-15', name: 'The Dominaters' }
+  { id: 'team-15', name: 'The Dominaters' },
+  { id: 'team-16', name: 'Golden Tech' }
 ];
 
 let socket = null;
@@ -102,8 +103,13 @@ function getTeams() {
   }));
 }
 
-// WebSocket Live Client Connection with Auto-reconnect
+// WebSocket Live Client Connection (Disabled on Vercel Serverless to prevent wss errors)
 function initWebSocket(onScoresUpdate) {
+  if (window.location.hostname.includes('vercel.app')) {
+    console.log('⚡ [Vercel Deployment] Serverless active - using fast Supabase live polling.');
+    return;
+  }
+
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host || 'localhost:3000';
   const wsUrl = `${protocol}//${host}`;
@@ -145,8 +151,8 @@ function initWebSocket(onScoresUpdate) {
     };
 
     socket.onclose = () => {
-      console.warn('⚠️ [WebSocket Client] Disconnected. Retrying in 3 seconds...');
-      reconnectTimer = setTimeout(() => initWebSocket(onScoresUpdate), 3000);
+      console.warn('⚠️ [WebSocket Client] Disconnected. Retrying in 5 seconds...');
+      reconnectTimer = setTimeout(() => initWebSocket(onScoresUpdate), 5000);
     };
 
     socket.onerror = (err) => {
@@ -363,7 +369,7 @@ if (repoForm) {
     }
 
     if (liveUrl && !liveUrl.startsWith('http://') && !liveUrl.startsWith('https://')) {
-      showSubmitStatus('Please enter a valid Live Website URL starting with http:// or https://', 'error');
+      showSubmitStatus('Please enter a valid Live Website URL starting with http:// or https:// (or leave it blank).', 'error');
       return;
     }
 
@@ -375,8 +381,11 @@ if (repoForm) {
     saveRepoMap(repoMap);
     saveLiveMap(liveMap);
 
+    // Primary endpoint with Vercel action fallback
+    const submitEndpoint = '/api/scores?action=submit-repo';
+
     try {
-      const res = await fetch('/api/submit-repo', {
+      const res = await fetch(submitEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId, repoUrl, liveUrl })
@@ -394,7 +403,7 @@ if (repoForm) {
         showSubmitStatus(data.error || 'Failed to submit links. Please try again.', 'error');
       }
     } catch (err) {
-      showSubmitStatus('Submitted locally! Will sync when server is online.', 'success');
+      showSubmitStatus('Submitted locally! Will sync when connection restores.', 'success');
       renderRepoRosterUI();
     }
   });
@@ -780,13 +789,13 @@ if (leaderboardBody) {
   // Initialize Ultra-Fast Real-Time WebSocket Connection
   initWebSocket(() => renderLeaderboardUI());
 
-  // Polling backup fallback every 5 seconds if WebSocket drops
+  // Polling backup fallback every 3 seconds
   setInterval(async () => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       const updatedMap = await fetchServerScores();
       renderLeaderboardUI();
     }
-  }, 5000);
+  }, 3000);
 
   // Storage listener for instant cross-tab sync
   window.addEventListener('storage', (e) => {

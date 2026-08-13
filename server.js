@@ -29,7 +29,8 @@ const HARDCODED_TEAMS = [
   { id: 'team-12', name: 'ByteNations' },
   { id: 'team-13', name: 'Mind Matrix' },
   { id: 'team-14', name: 'Flexbox Fanatics' },
-  { id: 'team-15', name: 'The Dominaters' }
+  { id: 'team-15', name: 'The Dominaters' },
+  { id: 'team-16', name: 'Golden Tech' }
 ];
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://uqgtwvbwruhwkkpvuanv.supabase.co";

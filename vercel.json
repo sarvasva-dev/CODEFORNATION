@@ -1,6 +1,7 @@
 {
   "version": 2,
   "rewrites": [
+    { "source": "/api/submit-repo", "destination": "/api/scores?action=submit-repo" },
     { "source": "/api/scores/reset", "destination": "/api/scores?action=reset" },
     { "source": "/api/scores", "destination": "/api/scores" }
   ]

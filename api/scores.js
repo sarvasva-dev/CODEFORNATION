@@ -15,7 +15,8 @@ const HARDCODED_TEAMS = [
   { id: 'team-12', name: 'ByteNations' },
   { id: 'team-13', name: 'Mind Matrix' },
   { id: 'team-14', name: 'Flexbox Fanatics' },
-  { id: 'team-15', name: 'The Dominaters' }
+  { id: 'team-15', name: 'The Dominaters' },
+  { id: 'team-16', name: 'Golden Tech' }
 ];
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://uqgtwvbwruhwkkpvuanv.supabase.co";
@@ -47,8 +48,9 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const isResetAction = req.query?.action === 'reset' || req.url?.includes('/reset');
-  const isSubmitRepoAction = req.query?.action === 'submit-repo' || req.url?.includes('submit-repo');
+  const urlStr = req.url || '';
+  const isResetAction = req.query?.action === 'reset' || urlStr.includes('/reset');
+  const isSubmitRepoAction = req.query?.action === 'submit-repo' || urlStr.includes('submit-repo');
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
 
   try {

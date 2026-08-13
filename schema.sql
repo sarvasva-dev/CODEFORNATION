@@ -40,7 +40,7 @@ DROP POLICY IF EXISTS "Allow public delete" ON public.teams;
 CREATE POLICY "Allow public delete" ON public.teams
     FOR DELETE USING (true);
 
--- 5. Seed Initial 15 Teams
+-- 5. Seed Initial 16 Official Teams
 INSERT INTO public.teams (id, name, score) VALUES
     ('team-1', 'Built4Bharat', 0),
     ('team-2', 'IND-Squad', 0),
@@ -56,5 +56,6 @@ INSERT INTO public.teams (id, name, score) VALUES
     ('team-12', 'ByteNations', 0),
     ('team-13', 'Mind Matrix', 0),
     ('team-14', 'Flexbox Fanatics', 0),
-    ('team-15', 'The Dominaters', 0)
+    ('team-15', 'The Dominaters', 0),
+    ('team-16', 'Golden Tech', 0)
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
