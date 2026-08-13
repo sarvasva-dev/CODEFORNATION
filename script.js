@@ -430,6 +430,9 @@ if (scoreForm) {
   const entryCount = document.getElementById('entryCount');
   const resetAllBtn = document.getElementById('resetAllBtn');
 
+  const adminUserSelect = document.getElementById('adminUserSelect');
+  const loggedAdminBadge = document.getElementById('loggedAdminBadge');
+  const loggedAdminName = document.getElementById('loggedAdminName');
   const adminLoginModal = document.getElementById('adminLoginModal');
   const adminMainContent = document.getElementById('adminMainContent');
   const adminLoginForm = document.getElementById('adminLoginForm');
@@ -441,10 +444,16 @@ if (scoreForm) {
 
   function checkAdminAuth() {
     const isAuthed = sessionStorage.getItem(ADMIN_AUTH_KEY) === 'true';
+    const savedName = sessionStorage.getItem('vsics_admin_name');
+
     if (isAuthed) {
       if (adminLoginModal) adminLoginModal.style.display = 'none';
       if (adminMainContent) adminMainContent.style.display = 'block';
       if (logoutBtn) logoutBtn.style.display = 'inline-block';
+      if (loggedAdminBadge) {
+        loggedAdminBadge.style.display = 'inline-flex';
+        if (loggedAdminName) loggedAdminName.textContent = savedName || 'Evaluator';
+      }
       populateDropdown();
       renderEntriesUI();
       fetchServerScores().then(map => {
@@ -454,7 +463,8 @@ if (scoreForm) {
       if (adminLoginModal) adminLoginModal.style.display = 'flex';
       if (adminMainContent) adminMainContent.style.display = 'none';
       if (logoutBtn) logoutBtn.style.display = 'none';
-      if (adminPassInput) adminPassInput.focus();
+      if (loggedAdminBadge) loggedAdminBadge.style.display = 'none';
+      if (adminUserSelect) adminUserSelect.focus();
     }
   }
 
@@ -473,10 +483,19 @@ if (scoreForm) {
   if (adminLoginForm) {
     adminLoginForm.addEventListener('submit', (e) => {
       e.preventDefault();
+      const selectedEvaluator = adminUserSelect ? adminUserSelect.value : '';
       const enteredPass = adminPassInput.value.trim();
+
+      if (!selectedEvaluator) {
+        loginStatus.textContent = '⚠️ Please select an official Evaluator / Admin name.';
+        loginStatus.className = 'login-status error';
+        return;
+      }
+
       if (enteredPass === ADMIN_PASSWORD) {
         sessionStorage.setItem(ADMIN_AUTH_KEY, 'true');
-        loginStatus.textContent = '✅ Access Granted! Unlocking...';
+        sessionStorage.setItem('vsics_admin_name', selectedEvaluator);
+        loginStatus.textContent = `✅ Welcome ${selectedEvaluator}! Access Granted...`;
         loginStatus.className = 'login-status success';
         setTimeout(() => {
           adminPassInput.value = '';
@@ -501,6 +520,7 @@ if (scoreForm) {
     logoutBtn.addEventListener('click', () => {
       if (confirm('Are you sure you want to log out of Admin Control Panel?')) {
         sessionStorage.removeItem(ADMIN_AUTH_KEY);
+        sessionStorage.removeItem('vsics_admin_name');
         checkAdminAuth();
       }
     });

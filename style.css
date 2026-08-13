@@ -1052,5 +1052,24 @@ tbody tr:hover { background: #F8FAFC; }
   color: #FFFFFF;
 }
 
+/* Logged-in Evaluator Badge */
+.logged-admin-badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: #F8FAFC;
+  border: 1px solid rgba(255, 119, 0, 0.4);
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logged-admin-badge strong {
+  color: var(--saffron-bright);
+}
+
+
 
 

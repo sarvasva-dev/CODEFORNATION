@@ -26,7 +26,8 @@
       </div>
     </div>
     <div class="topbar-actions">
-      <button id="logoutBtn" class="btn-logout" style="display:none;">🔒 Logout Admin</button>
+      <div id="loggedAdminBadge" class="logged-admin-badge" style="display:none;">👤 Evaluator: <strong id="loggedAdminName">SP SINGH</strong></div>
+      <button id="logoutBtn" class="btn-logout" style="display:none;">🔒 Logout</button>
       <a href="submit.html" class="nav-btn secondary-nav-btn">📁 Submit Repo</a>
       <a href="leaderboard.html" class="nav-btn">🏆 View Live Leaderboard →</a>
     </div>
@@ -104,17 +105,29 @@
       <div class="login-header">
         <div class="login-icon">🔐</div>
         <h2>VSICS Admin Login</h2>
-        <p>Enter the admin password to access the Control Panel</p>
+        <p>Select Evaluator & Enter Admin Password</p>
       </div>
       <form id="adminLoginForm">
-        <div class="form-group">
-          <label for="adminPassInput">Admin Password</label>
+        <div class="form-group" style="margin-bottom: 18px; text-align: left;">
+          <label for="adminUserSelect" style="display:block; font-size:0.9rem; font-weight:800; color:var(--navy); margin-bottom:8px;">Select Evaluator / Admin <span class="req">*</span></label>
+          <select id="adminUserSelect" required style="width:100%; padding:13px 16px; border:1.5px solid var(--border-color); border-radius:10px; font-size:0.98rem; background-color:#F8FAFC; font-weight:800; color:var(--navy);">
+            <option value="" disabled selected>-- Select Official Evaluator --</option>
+            <option value="SP SINGH">SP SINGH</option>
+            <option value="PURNIMA PANDEY">PURNIMA PANDEY</option>
+            <option value="ARCHITA DUBEY">ARCHITA DUBEY</option>
+            <option value="DEEPESH YADAV">DEEPESH YADAV</option>
+            <option value="SHAILENDRA DIXIT">SHAILENDRA DIXIT</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label for="adminPassInput" style="display:block; font-size:0.9rem; font-weight:800; color:var(--navy); margin-bottom:8px;">Admin Password <span class="req">*</span></label>
           <div class="pass-input-wrap">
-            <input type="password" id="adminPassInput" placeholder="Enter Admin Password" required autofocus autocomplete="current-password">
+            <input type="password" id="adminPassInput" placeholder="Enter Admin Password" required autocomplete="current-password">
             <button type="button" id="togglePassBtn" class="toggle-pass-btn" title="Toggle password visibility">👁️</button>
           </div>
         </div>
-        <button type="submit" class="btn primary login-submit-btn">Unlock Control Panel →</button>
+        <button type="submit" class="btn primary login-submit-btn" style="margin-top: 22px;">Unlock Control Panel →</button>
       </form>
       <div id="loginStatus" class="login-status"></div>
       <div class="login-footer">
