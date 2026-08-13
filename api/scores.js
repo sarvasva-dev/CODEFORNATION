@@ -30,6 +30,10 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://upcybercrime72_db_
 let cachedClient = null;
 let cachedDb = null;
 
+// Memory fallback store
+const fallbackStore = {};
+HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
+
 async function connectToDatabase() {
   if (cachedClient && cachedDb) {
     return { client: cachedClient, db: cachedDb };
@@ -66,6 +70,8 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const isResetAction = req.query?.action === 'reset' || req.url?.includes('/reset');
+
   try {
     const { db } = await connectToDatabase();
     const collection = db.collection('teams');
@@ -82,11 +88,10 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const isResetAction = req.query.action === 'reset' || req.url.includes('/reset');
-
     // Handle Reset All Scores
     if (req.method === 'POST' && isResetAction) {
       await collection.updateMany({}, { $set: { score: 0 } });
+      HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
       return res.status(200).json({ success: true, message: 'All team scores reset to 0' });
     }
 
@@ -105,6 +110,7 @@ module.exports = async function handler(req, res) {
         { $set: { score: numScore } },
         { upsert: true }
       );
+      fallbackStore[teamId] = numScore;
       return res.status(200).json({ success: true, teamId, score: numScore });
     }
 
@@ -116,7 +122,7 @@ module.exports = async function handler(req, res) {
 
       const result = HARDCODED_TEAMS.map(team => ({
         ...team,
-        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : 0
+        score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (fallbackStore[team.id] || 0)
       }));
       return res.status(200).json(result);
     }
@@ -124,9 +130,27 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
     console.error('Vercel Serverless Function Error:', err.message);
-    
-    // Memory/Static Fallback on DB Connection Error
-    const result = HARDCODED_TEAMS.map(team => ({ ...team, score: 0 }));
+
+    // Fallback store handling if DB is temporarily unreachable
+    if (req.method === 'POST' && isResetAction) {
+      HARDCODED_TEAMS.forEach(t => fallbackStore[t.id] = 0);
+      return res.status(200).json({ success: true, message: 'All team scores reset to 0' });
+    }
+
+    if (req.method === 'POST') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const { teamId, score } = body || {};
+      if (teamId && !isNaN(score)) {
+        const numScore = Math.max(0, parseFloat(score));
+        fallbackStore[teamId] = numScore;
+        return res.status(200).json({ success: true, teamId, score: numScore });
+      }
+    }
+
+    const result = HARDCODED_TEAMS.map(team => ({
+      ...team,
+      score: fallbackStore[team.id] !== undefined ? fallbackStore[team.id] : 0
+    }));
     return res.status(200).json(result);
   }
 };

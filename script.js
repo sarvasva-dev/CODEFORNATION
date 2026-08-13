@@ -20,10 +20,7 @@ const HARDCODED_TEAMS = [
   { id: 'team-15', name: 'The Dominaters' }
 ];
 
-// Memory state for instant UI rendering
-let currentTeamsState = HARDCODED_TEAMS.map(t => ({ ...t, score: 0 }));
-
-// Get local backup scores
+// Helper to load scores from localStorage
 function getLocalScores() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -46,58 +43,72 @@ function saveLocalReset() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
 }
 
-// Fetch scores from MongoDB API (with localStorage fallback)
-async function fetchTeams() {
+// In-memory state initialized immediately from localStorage
+let currentTeamsState = HARDCODED_TEAMS.map(team => {
+  const localMap = getLocalScores();
+  return {
+    ...team,
+    score: localMap[team.id] !== undefined ? Math.max(0, parseFloat(localMap[team.id]) || 0) : 0
+  };
+});
+
+// Fetch scores from API and merge smartly without wiping local edits
+async function syncScoresWithAPI() {
   try {
     const res = await fetch(API_BASE);
     if (res.ok) {
-      const data = await res.json();
-      currentTeamsState = data;
-      // Sync local backup
-      const map = {};
-      data.forEach(t => map[t.id] = t.score);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-      return currentTeamsState;
+      const serverData = await res.json();
+      if (Array.isArray(serverData) && serverData.length > 0) {
+        const localMap = getLocalScores();
+        const updatedMap = {};
+
+        currentTeamsState = HARDCODED_TEAMS.map(team => {
+          const serverTeam = serverData.find(s => s.id === team.id);
+          const serverScore = serverTeam ? (parseFloat(serverTeam.score) || 0) : 0;
+          const localScore = localMap[team.id] !== undefined ? (parseFloat(localMap[team.id]) || 0) : 0;
+
+          // Smart merge: keep higher score between local & server unless reset
+          const finalScore = Math.max(serverScore, localScore);
+          updatedMap[team.id] = finalScore;
+          return { ...team, score: finalScore };
+        });
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMap));
+      }
     }
   } catch (e) {
-    // API not reachable or static host fallback
+    // Background sync silent failover to local state
   }
-
-  // Fallback to local storage
-  const localMap = getLocalScores();
-  currentTeamsState = HARDCODED_TEAMS.map(team => ({
-    ...team,
-    score: localMap[team.id] !== undefined ? localMap[team.id] : 0
-  }));
-  return currentTeamsState;
 }
 
-async function updateScoreAPI(teamId, newScore) {
-  saveLocalScore(teamId, newScore);
+async function updateTeamScore(teamId, newScore) {
+  const scoreVal = Math.max(0, parseFloat(newScore) || 0);
+  saveLocalScore(teamId, scoreVal);
 
-  // Update memory state
-  const target = currentTeamsState.find(t => t.id === teamId);
-  if (target) target.score = Math.max(0, parseFloat(newScore) || 0);
+  // Update in-memory state instantly
+  const team = currentTeamsState.find(t => t.id === teamId);
+  if (team) team.score = scoreVal;
 
+  // Background API Push
   try {
     await fetch(API_BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId, score: newScore })
+      body: JSON.stringify({ teamId, score: scoreVal })
     });
   } catch (e) {
-    console.warn("API update failed, saved to localStorage fallback:", e.message);
+    console.warn('API push deferred to local storage:', e.message);
   }
 }
 
-async function resetAllScoresAPI() {
+async function resetAllTeamScores() {
   saveLocalReset();
   currentTeamsState.forEach(t => t.score = 0);
 
   try {
     await fetch(`${API_BASE}/reset`, { method: 'POST' });
   } catch (e) {
-    console.warn("API reset failed, reset in localStorage fallback:", e.message);
+    console.warn('API reset deferred to local storage:', e.message);
   }
 }
 
@@ -155,8 +166,7 @@ if (scoreForm) {
     });
   }
 
-  async function renderEntries() {
-    await fetchTeams();
+  function renderEntriesUI() {
     entryCount.textContent = currentTeamsState.length;
     entriesBody.innerHTML = '';
 
@@ -172,11 +182,11 @@ if (scoreForm) {
         </td>
         <td>
           <div class="quick-btns">
-            <button class="quick-btn plus-btn" data-id="${team.id}" data-delta="1">+1</button>
-            <button class="quick-btn plus-btn" data-id="${team.id}" data-delta="5">+5</button>
-            <button class="quick-btn plus-btn" data-id="${team.id}" data-delta="10">+10</button>
-            <button class="quick-btn minus-btn" data-id="${team.id}" data-delta="-1">-1</button>
-            <button class="btn-save" data-id="${team.id}">Save</button>
+            <button type="button" class="quick-btn plus-btn" data-id="${team.id}" data-delta="1">+1</button>
+            <button type="button" class="quick-btn plus-btn" data-id="${team.id}" data-delta="5">+5</button>
+            <button type="button" class="quick-btn plus-btn" data-id="${team.id}" data-delta="10">+10</button>
+            <button type="button" class="quick-btn minus-btn" data-id="${team.id}" data-delta="-1">-1</button>
+            <button type="button" class="btn-save" data-id="${team.id}">Save</button>
           </div>
         </td>
       `;
@@ -217,10 +227,10 @@ if (scoreForm) {
       return;
     }
 
-    await updateScoreAPI(teamId, score);
+    await updateTeamScore(teamId, score);
     const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
     showStatus(`Score for "${teamName}" updated to ${score}.`, 'success');
-    renderEntries();
+    renderEntriesUI();
   });
 
   entriesBody.addEventListener('click', async (e) => {
@@ -235,9 +245,9 @@ if (scoreForm) {
     if (btn.classList.contains('quick-btn')) {
       const delta = parseFloat(btn.getAttribute('data-delta')) || 0;
       const newScore = Math.max(0, team.score + delta);
-      await updateScoreAPI(teamId, newScore);
-      showStatus(`"${team.name}" score: ${newScore}`, 'success');
-      renderEntries();
+      await updateTeamScore(teamId, newScore);
+      showStatus(`"${team.name}" score updated to ${newScore}`, 'success');
+      renderEntriesUI();
       if (teamSelect.value === teamId) {
         teamScoreInput.value = newScore;
       }
@@ -246,9 +256,9 @@ if (scoreForm) {
       const input = row.querySelector('.table-score-input');
       const newScore = parseFloat(input.value);
       if (!isNaN(newScore) && newScore >= 0) {
-        await updateScoreAPI(teamId, newScore);
+        await updateTeamScore(teamId, newScore);
         showStatus(`"${team.name}" updated to ${newScore}.`, 'success');
-        renderEntries();
+        renderEntriesUI();
       } else {
         showStatus('Invalid score value.', 'error');
       }
@@ -261,9 +271,9 @@ if (scoreForm) {
       const newScore = parseFloat(e.target.value);
       const team = currentTeamsState.find(t => t.id === teamId);
       if (team && !isNaN(newScore) && newScore >= 0) {
-        await updateScoreAPI(teamId, newScore);
+        await updateTeamScore(teamId, newScore);
         showStatus(`"${team.name}" updated to ${newScore}.`, 'success');
-        renderEntries();
+        renderEntriesUI();
       }
     }
   });
@@ -271,8 +281,8 @@ if (scoreForm) {
   if (resetAllBtn) {
     resetAllBtn.addEventListener('click', async () => {
       if (confirm('Are you sure you want to reset ALL team scores to 0?')) {
-        await resetAllScoresAPI();
-        renderEntries();
+        await resetAllTeamScores();
+        renderEntriesUI();
         teamScoreInput.value = '';
         teamSelect.value = '';
         showStatus('All team scores reset to 0.', 'success');
@@ -281,7 +291,10 @@ if (scoreForm) {
   }
 
   populateDropdown();
-  renderEntries();
+  renderEntriesUI();
+
+  // Background API Sync
+  syncScoresWithAPI().then(renderEntriesUI);
 }
 
 // =========================================================
@@ -298,8 +311,7 @@ if (leaderboardBody) {
   const medals = ['🥇', '🥈', '🥉'];
   const rankClasses = ['gold', 'silver', 'bronze'];
 
-  async function renderLeaderboard() {
-    await fetchTeams();
+  function renderLeaderboardUI() {
     const allTeams = sortedTeams();
     const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const filteredTeams = query
@@ -367,18 +379,27 @@ if (leaderboardBody) {
   }
 
   if (searchInput) {
-    searchInput.addEventListener('input', renderLeaderboard);
+    searchInput.addEventListener('input', renderLeaderboardUI);
   }
 
-  renderLeaderboard();
+  // Render instantly from local state
+  renderLeaderboardUI();
 
-  // Storage sync listener
+  // Background API Sync & Periodic Refresh
+  syncScoresWithAPI().then(renderLeaderboardUI);
+  setInterval(async () => {
+    await syncScoresWithAPI();
+    renderLeaderboardUI();
+  }, 3000);
+
+  // Storage listener for cross-tab sync
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY) {
-      renderLeaderboard();
+      const localMap = getLocalScores();
+      currentTeamsState.forEach(t => {
+        if (localMap[t.id] !== undefined) t.score = parseFloat(localMap[t.id]) || 0;
+      });
+      renderLeaderboardUI();
     }
   });
-
-  // Polling update every 2 seconds
-  setInterval(renderLeaderboard, 2000);
 }
