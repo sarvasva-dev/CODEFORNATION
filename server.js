@@ -44,7 +44,7 @@ const wss = new WebSocketServer({ server });
 wss.on('connection', async (ws) => {
   console.log('⚡ [WebSocket] Client connected to live leaderboard stream.');
   
-  // Send current scores & repos immediately upon connection
+  // Send current scores, repos & live URLs immediately upon connection
   const scores = await fetchAllScores();
   ws.send(JSON.stringify({ type: 'SCORES_UPDATED', scores }));
 
@@ -65,29 +65,34 @@ function broadcastScores(scores) {
   console.log(`📡 [WebSocket Broadcast] Sent live scores to ${count} active clients.`);
 }
 
-// Memory fallback store if DB is offline or table not created yet
+// Memory fallback stores if DB is offline
 const memoryStore = {};
 const repoStore = {};
+const liveStore = {};
 HARDCODED_TEAMS.forEach(t => {
   memoryStore[t.id] = 0;
   repoStore[t.id] = '';
+  liveStore[t.id] = '';
 });
 
 async function fetchAllScores() {
   try {
-    const { data, error } = await supabase.from('teams').select('id, name, score, repo_url');
+    const { data, error } = await supabase.from('teams').select('*');
     if (!error && data) {
       const scoreMap = {};
       const repoMap = {};
+      const liveMap = {};
       data.forEach(d => {
         scoreMap[d.id] = Number(d.score) || 0;
         if (d.repo_url) repoMap[d.id] = d.repo_url;
+        if (d.live_url) liveMap[d.id] = d.live_url;
       });
 
       return HARDCODED_TEAMS.map(team => ({
         ...team,
         score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (memoryStore[team.id] || 0),
-        repo_url: repoMap[team.id] || repoStore[team.id] || ''
+        repo_url: repoMap[team.id] || repoStore[team.id] || '',
+        live_url: liveMap[team.id] || liveStore[team.id] || ''
       }));
     }
   } catch (e) {
@@ -97,7 +102,8 @@ async function fetchAllScores() {
   return HARDCODED_TEAMS.map(team => ({
     ...team,
     score: memoryStore[team.id] || 0,
-    repo_url: repoStore[team.id] || ''
+    repo_url: repoStore[team.id] || '',
+    live_url: liveStore[team.id] || ''
   }));
 }
 
@@ -137,38 +143,59 @@ app.get('/api/scores', async (req, res) => {
   res.json(scores);
 });
 
-// Endpoint for Team Leaders to submit GitHub Repository Link (No admin pass required)
+// Endpoint for Team Leaders to submit GitHub Repo & Live Website URL
 app.post('/api/submit-repo', async (req, res) => {
-  const { teamId, repoUrl } = req.body || {};
-  if (!teamId || !repoUrl) {
-    return res.status(400).json({ error: "Team selection and GitHub Repository URL are required." });
+  const { teamId, repoUrl, liveUrl } = req.body || {};
+  if (!teamId) {
+    return res.status(400).json({ error: "Team selection is required." });
   }
 
-  const cleanUrl = String(repoUrl).trim();
   const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
   const teamName = teamObj ? teamObj.name : teamId;
+
+  const updatePayload = {
+    id: teamId,
+    name: teamName,
+    updated_at: new Date()
+  };
+
+  if (repoUrl !== undefined) {
+    const cleanRepo = String(repoUrl).trim();
+    updatePayload.repo_url = cleanRepo;
+    repoStore[teamId] = cleanRepo;
+  }
+
+  if (liveUrl !== undefined) {
+    const cleanLive = String(liveUrl).trim();
+    updatePayload.live_url = cleanLive;
+    liveStore[teamId] = cleanLive;
+  }
 
   try {
     const { error } = await supabase
       .from('teams')
-      .upsert({ id: teamId, name: teamName, repo_url: cleanUrl, updated_at: new Date() });
+      .upsert(updatePayload);
 
     if (error) {
-      console.error("Error updating repo URL in Supabase:", error.message);
+      console.error("Error updating links in Supabase:", error.message);
     } else {
-      console.log(`✅ Submitted GitHub repo for ${teamName} (${teamId}): ${cleanUrl}`);
+      console.log(`✅ Submitted Links for ${teamName} (${teamId}): Repo="${updatePayload.repo_url||''}", Live="${updatePayload.live_url||''}"`);
     }
   } catch (e) {
-    console.error("Supabase Repo Submission Error:", e.message);
+    console.error("Supabase Submission Error:", e.message);
   }
 
-  repoStore[teamId] = cleanUrl;
-
-  // Broadcast updated scores & repo links via WebSockets
+  // Broadcast updated scores & repo/live links via WebSockets
   const updatedScores = await fetchAllScores();
   broadcastScores(updatedScores);
 
-  res.json({ success: true, teamId, repoUrl: cleanUrl, message: `Repository URL submitted for ${teamName}!` });
+  res.json({
+    success: true,
+    teamId,
+    repoUrl: repoStore[teamId] || '',
+    liveUrl: liveStore[teamId] || '',
+    message: `Links submitted successfully for ${teamName}!`
+  });
 });
 
 app.post('/api/scores', async (req, res) => {

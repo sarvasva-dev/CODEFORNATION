@@ -1,4 +1,4 @@
-// ===== VSICS Hackathon Leaderboard Engine (Supabase + WebSockets + GitHub Repo Submissions) =====
+// ===== VSICS Hackathon Leaderboard Engine (Supabase + WebSockets + GitHub & Live Links Submissions) =====
 const STORAGE_KEY = 'vsics_hackathon_leaderboard_v2';
 const API_BASE = '/api/scores';
 const ADMIN_PASSWORD = '##HELLOCODEFORNATION';
@@ -66,21 +66,39 @@ function getRepoMap() {
   }
 }
 
-// Write repo map to LocalStorage
 function saveRepoMap(map) {
   try {
     localStorage.setItem(STORAGE_KEY + '_repos', JSON.stringify(map));
   } catch (e) {}
 }
 
-// Get array of teams merged with current LocalStorage scores and repos
+// Read live website map from LocalStorage
+function getLiveMap() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY + '_lives');
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveLiveMap(map) {
+  try {
+    localStorage.setItem(STORAGE_KEY + '_lives', JSON.stringify(map));
+  } catch (e) {}
+}
+
+// Get array of teams merged with current LocalStorage scores, repos & live links
 function getTeams() {
   const map = getScoreMap();
   const repoMap = getRepoMap();
+  const liveMap = getLiveMap();
   return HARDCODED_TEAMS.map(team => ({
     ...team,
     score: map[team.id] !== undefined ? Math.max(0, parseFloat(map[team.id]) || 0) : 0,
-    repo_url: repoMap[team.id] || ''
+    repo_url: repoMap[team.id] || '',
+    live_url: liveMap[team.id] || ''
   }));
 }
 
@@ -103,17 +121,20 @@ function initWebSocket(onScoresUpdate) {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'SCORES_UPDATED' && Array.isArray(message.scores)) {
-          console.log('📡 [WebSocket Broadcast] Instant score/repo update received!');
+          console.log('📡 [WebSocket Broadcast] Instant score/repo/live update received!');
           const map = getScoreMap();
           const repoMap = getRepoMap();
+          const liveMap = getLiveMap();
           message.scores.forEach(item => {
             if (item.id) {
               if (item.score !== undefined) map[item.id] = Number(item.score) || 0;
               if (item.repo_url !== undefined) repoMap[item.id] = item.repo_url || '';
+              if (item.live_url !== undefined) liveMap[item.id] = item.live_url || '';
             }
           });
           saveScoreMap(map);
           saveRepoMap(repoMap);
+          saveLiveMap(liveMap);
           if (typeof onScoresUpdate === 'function') {
             onScoresUpdate();
           }
@@ -176,7 +197,7 @@ async function resetAllScores() {
   }
 }
 
-// Sync scores & repo URLs from Supabase API to LocalStorage
+// Sync scores, repo URLs & live URLs from Supabase API to LocalStorage
 async function fetchServerScores() {
   try {
     const res = await fetch(API_BASE);
@@ -186,6 +207,7 @@ async function fetchServerScores() {
     if (Array.isArray(data)) {
       const map = getScoreMap();
       const repoMap = getRepoMap();
+      const liveMap = getLiveMap();
       let updated = false;
       data.forEach(item => {
         if (item.id) {
@@ -197,12 +219,17 @@ async function fetchServerScores() {
             repoMap[item.id] = item.repo_url || '';
             updated = true;
           }
+          if (item.live_url !== undefined && liveMap[item.id] !== item.live_url) {
+            liveMap[item.id] = item.live_url || '';
+            updated = true;
+          }
         }
       });
 
       if (updated) {
         saveScoreMap(map);
         saveRepoMap(repoMap);
+        saveLiveMap(liveMap);
         console.log('🔄 [Supabase API] Local state updated from server.');
       }
       return map;
@@ -228,12 +255,13 @@ function escapeHtml(str) {
 function exportLeaderboardCSV() {
   console.log('📥 [CSV Export] Generating CSV file...');
   const teams = getSortedTeams().filter(t => t.score > 0);
-  let csvContent = 'Rank,Team Name,Score,GitHub Repository\n';
+  let csvContent = 'Rank,Team Name,Score,GitHub Repository,Live Website Demo\n';
   
   teams.forEach((t, i) => {
     const cleanName = `"${t.name.replace(/"/g, '""')}"`;
     const cleanRepo = `"${(t.repo_url || '').replace(/"/g, '""')}"`;
-    csvContent += `${i + 1},${cleanName},${t.score},${cleanRepo}\n`;
+    const cleanLive = `"${(t.live_url || '').replace(/"/g, '""')}"`;
+    csvContent += `${i + 1},${cleanName},${t.score},${cleanRepo},${cleanLive}\n`;
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -249,14 +277,15 @@ function exportLeaderboardCSV() {
 }
 
 // =========================================================
-// ============  SUBMIT REPO PAGE LOGIC  ===================
+// ============  SUBMIT REPO & LIVE PAGE LOGIC  ============
 // =========================================================
 const repoForm = document.getElementById('repoForm');
 
 if (repoForm) {
-  console.log('📁 [Submission Portal] GitHub Repo Submission page loaded.');
+  console.log('📁 [Submission Portal] GitHub Repo & Live Website Submission page loaded.');
   const submitTeamSelect = document.getElementById('submitTeamSelect');
   const repoUrlInput = document.getElementById('repoUrlInput');
+  const liveUrlInput = document.getElementById('liveUrlInput');
   const submitStatusMsg = document.getElementById('submitStatusMsg');
   const repoRosterBody = document.getElementById('repoRosterBody');
   const submittedCount = document.getElementById('submittedCount');
@@ -278,22 +307,28 @@ if (repoForm) {
     repoRosterBody.innerHTML = '';
 
     teams.forEach((team, index) => {
-      const isSubmitted = Boolean(team.repo_url && team.repo_url.trim());
-      if (isSubmitted) countSubmitted++;
+      const hasRepo = Boolean(team.repo_url && team.repo_url.trim());
+      const hasLive = Boolean(team.live_url && team.live_url.trim());
+      if (hasRepo || hasLive) countSubmitted++;
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>#${index + 1}</strong></td>
         <td><span class="team-badge">${escapeHtml(team.name)}</span></td>
         <td>
-          ${isSubmitted 
+          ${(hasRepo || hasLive) 
             ? '<span class="status-tag submitted">✅ Submitted</span>' 
             : '<span class="status-tag pending">⏳ Pending</span>'}
         </td>
         <td>
-          ${isSubmitted 
+          ${hasRepo 
             ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 ${escapeHtml(team.repo_url)} ↗</a>`
-            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No repository submitted yet</span>'}
+            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No repository submitted</span>'}
+        </td>
+        <td>
+          ${hasLive 
+            ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 ${escapeHtml(team.live_url)} ↗</a>`
+            : '<span style="color:#94A3B8; font-size:0.85rem; font-style:italic;">No live demo submitted</span>'}
         </td>
       `;
       repoRosterBody.appendChild(tr);
@@ -315,6 +350,7 @@ if (repoForm) {
     e.preventDefault();
     const teamId = submitTeamSelect.value;
     const repoUrl = repoUrlInput.value.trim();
+    const liveUrl = liveUrlInput ? liveUrlInput.value.trim() : '';
 
     if (!teamId) {
       showSubmitStatus('Please select your official team from the list.', 'error');
@@ -326,30 +362,39 @@ if (repoForm) {
       return;
     }
 
+    if (liveUrl && !liveUrl.startsWith('http://') && !liveUrl.startsWith('https://')) {
+      showSubmitStatus('Please enter a valid Live Website URL starting with http:// or https://', 'error');
+      return;
+    }
+
     // Update locally immediately
     const repoMap = getRepoMap();
+    const liveMap = getLiveMap();
     repoMap[teamId] = repoUrl;
+    if (liveUrl) liveMap[teamId] = liveUrl;
     saveRepoMap(repoMap);
+    saveLiveMap(liveMap);
 
     try {
       const res = await fetch('/api/submit-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, repoUrl })
+        body: JSON.stringify({ teamId, repoUrl, liveUrl })
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
         const teamName = HARDCODED_TEAMS.find(t => t.id === teamId)?.name || 'Team';
-        showSubmitStatus(`🎉 GitHub Repository link for "${teamName}" submitted successfully!`, 'success');
+        showSubmitStatus(`🎉 Project Links for "${teamName}" submitted successfully!`, 'success');
         repoUrlInput.value = '';
+        if (liveUrlInput) liveUrlInput.value = '';
         submitTeamSelect.value = '';
         renderRepoRosterUI();
       } else {
-        showSubmitStatus(data.error || 'Failed to submit repository URL. Please try again.', 'error');
+        showSubmitStatus(data.error || 'Failed to submit links. Please try again.', 'error');
       }
     } catch (err) {
-      showSubmitStatus('Submitted locally! Will sync when connection restores.', 'success');
+      showSubmitStatus('Submitted locally! Will sync when server is online.', 'success');
       renderRepoRosterUI();
     }
   });
@@ -357,7 +402,7 @@ if (repoForm) {
   if (whatsappShareBtn) {
     whatsappShareBtn.addEventListener('click', () => {
       const shareUrl = window.location.href;
-      const shareText = `🚩 *CODE FOR THE NATION 2026*\n\nAttention Team Leaders: Please select your team and submit your official GitHub Project Repository link here:\n\n🔗 ${shareUrl}`;
+      const shareText = `🚩 *CODE FOR THE NATION 2026*\n\nAttention Team Leaders: Please select your team and submit your official GitHub Repository & Live Hosted Website links here:\n\n🔗 ${shareUrl}`;
       const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
       window.open(waUrl, '_blank');
     });
@@ -481,9 +526,12 @@ if (scoreForm) {
       tr.innerHTML = `
         <td><strong>#${index + 1}</strong></td>
         <td>
-          <div class="team-name-cell" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <div class="team-name-cell" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <span class="team-badge">${escapeHtml(team.name)}</span>
-            ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
+            <div style="display: flex; gap: 6px; align-items: center;">
+              ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
+              ${team.live_url ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
+            </div>
           </div>
         </td>
         <td>
@@ -656,7 +704,10 @@ if (leaderboardBody) {
             <div class="podium-medal">${medals[item.rank - 1]}</div>
             <div class="podium-name">${escapeHtml(item.data.name)}</div>
             <div class="podium-score">${item.data.score} <span class="pts-unit">pts</span></div>
-            ${item.data.repo_url ? `<div style="margin-top: 8px;"><a href="${escapeHtml(item.data.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub Repo ↗</a></div>` : ''}
+            <div style="margin-top: 10px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+              ${item.data.repo_url ? `<a href="${escapeHtml(item.data.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
+              ${item.data.live_url ? `<a href="${escapeHtml(item.data.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
+            </div>
           `;
           podium.appendChild(div);
         }
@@ -676,7 +727,10 @@ if (leaderboardBody) {
         <td>
           <div class="team-name-cell" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <strong>${escapeHtml(team.name)}</strong>
-            ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub Repo ↗</a>` : ''}
+            <div style="display: flex; gap: 6px; align-items: center;">
+              ${team.repo_url ? `<a href="${escapeHtml(team.repo_url)}" target="_blank" rel="noopener noreferrer" class="repo-link-btn">📁 GitHub ↗</a>` : ''}
+              ${team.live_url ? `<a href="${escapeHtml(team.live_url)}" target="_blank" rel="noopener noreferrer" class="live-link-btn">🌐 Live Demo ↗</a>` : ''}
+            </div>
           </div>
         </td>
         <td>
@@ -716,7 +770,7 @@ if (leaderboardBody) {
 
   // Storage listener for instant cross-tab sync
   window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY || e.key === STORAGE_KEY + '_repos') {
+    if (e.key === STORAGE_KEY || e.key === STORAGE_KEY + '_repos' || e.key === STORAGE_KEY + '_lives') {
       console.log('🔄 [Storage Event] Realtime sync from another tab.');
       renderLeaderboardUI();
     }

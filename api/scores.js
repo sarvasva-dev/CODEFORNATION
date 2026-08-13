@@ -25,9 +25,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const fallbackStore = {};
 const repoFallback = {};
+const liveFallback = {};
 HARDCODED_TEAMS.forEach(t => {
   fallbackStore[t.id] = 0;
   repoFallback[t.id] = '';
+  liveFallback[t.id] = '';
 });
 
 module.exports = async function handler(req, res) {
@@ -50,28 +52,44 @@ module.exports = async function handler(req, res) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '##HELLOCODEFORNATION';
 
   try {
-    // Handle Team Leader Repo Submission (Public endpoint, no admin pass required)
+    // Handle Team Leader Repo & Live Link Submission (Public endpoint)
     if (req.method === 'POST' && isSubmitRepoAction) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { teamId, repoUrl } = body || {};
+      const { teamId, repoUrl, liveUrl } = body || {};
 
-      if (!teamId || !repoUrl) {
-        return res.status(400).json({ error: 'Team selection and GitHub Repository URL are required.' });
+      if (!teamId) {
+        return res.status(400).json({ error: 'Team selection is required.' });
       }
 
-      const cleanUrl = String(repoUrl).trim();
       const teamObj = HARDCODED_TEAMS.find(t => t.id === teamId);
       const teamName = teamObj ? teamObj.name : teamId;
 
-      await supabase.from('teams').upsert({
+      const updatePayload = {
         id: teamId,
         name: teamName,
-        repo_url: cleanUrl,
         updated_at: new Date()
-      });
+      };
 
-      repoFallback[teamId] = cleanUrl;
-      return res.status(200).json({ success: true, teamId, repoUrl: cleanUrl });
+      if (repoUrl !== undefined) {
+        const cleanRepo = String(repoUrl).trim();
+        updatePayload.repo_url = cleanRepo;
+        repoFallback[teamId] = cleanRepo;
+      }
+
+      if (liveUrl !== undefined) {
+        const cleanLive = String(liveUrl).trim();
+        updatePayload.live_url = cleanLive;
+        liveFallback[teamId] = cleanLive;
+      }
+
+      await supabase.from('teams').upsert(updatePayload);
+
+      return res.status(200).json({
+        success: true,
+        teamId,
+        repoUrl: repoFallback[teamId] || '',
+        liveUrl: liveFallback[teamId] || ''
+      });
     }
 
     // Check admin password for score mutation (POST)
@@ -113,23 +131,26 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, teamId, score: numScore });
     }
 
-    // Handle GET (Fetch all team scores & repos)
+    // Handle GET (Fetch all team scores & repos & live links)
     if (req.method === 'GET') {
-      const { data, error } = await supabase.from('teams').select('id, name, score, repo_url');
+      const { data, error } = await supabase.from('teams').select('*');
       
       const scoreMap = {};
       const repoMap = {};
+      const liveMap = {};
       if (!error && data) {
         data.forEach(d => {
           scoreMap[d.id] = Number(d.score) || 0;
           if (d.repo_url) repoMap[d.id] = d.repo_url;
+          if (d.live_url) liveMap[d.id] = d.live_url;
         });
       }
 
       const result = HARDCODED_TEAMS.map(team => ({
         ...team,
         score: scoreMap[team.id] !== undefined ? scoreMap[team.id] : (fallbackStore[team.id] || 0),
-        repo_url: repoMap[team.id] || repoFallback[team.id] || ''
+        repo_url: repoMap[team.id] || repoFallback[team.id] || '',
+        live_url: liveMap[team.id] || liveFallback[team.id] || ''
       }));
       return res.status(200).json(result);
     }
@@ -141,7 +162,8 @@ module.exports = async function handler(req, res) {
     const result = HARDCODED_TEAMS.map(team => ({
       ...team,
       score: fallbackStore[team.id] !== undefined ? fallbackStore[team.id] : 0,
-      repo_url: repoFallback[team.id] || ''
+      repo_url: repoFallback[team.id] || '',
+      live_url: liveFallback[team.id] || ''
     }));
     return res.status(200).json(result);
   }
